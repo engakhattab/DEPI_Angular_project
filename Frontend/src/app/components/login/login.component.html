@@ -1,0 +1,47 @@
+<section class="login-screen">
+  <div class="login-panel">
+    <header class="login-panel__header">
+      <h1>Employee Portal</h1>
+      <p>Sign in with your email or employee number to access the dashboard.</p>
+    </header>
+
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" class="login-form" novalidate>
+      <label class="field-label" for="identifier">Email or Employee ID</label>
+      <input
+        id="identifier"
+        class="field-input"
+        formControlName="identifier"
+        placeholder="e.g. jane.doe@company.com or EMP1003"
+        autocomplete="username"
+        [class.field-input--invalid]="form.controls.identifier.touched && form.controls.identifier.invalid"
+      />
+      <p *ngIf="form.controls.identifier.touched && form.controls.identifier.invalid" class="field-error">
+        Identifier is required.
+      </p>
+
+      <label class="field-label" for="password">Password</label>
+      <input
+        id="password"
+        type="password"
+        class="field-input"
+        formControlName="password"
+        placeholder="Enter your password"
+        autocomplete="current-password"
+        [class.field-input--invalid]="form.controls.password.touched && form.controls.password.invalid"
+      />
+      <p *ngIf="form.controls.password.touched && form.controls.password.invalid" class="field-error">
+        Password is required.
+      </p>
+
+      <button type="submit" class="submit-button" [disabled]="loading">
+        <span *ngIf="loading" class="submit-button__spinner" aria-hidden="true"></span>
+        {{ loading ? 'Signing in...' : 'Sign in' }}
+      </button>
+    </form>
+
+    <p *ngIf="error" class="login-panel__error" role="alert">
+      {{ error }}
+    </p>
+  </div>
+</section>
+

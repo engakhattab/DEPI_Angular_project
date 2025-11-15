@@ -1,0 +1,202 @@
+<div class="page-container">
+    <div class="page-header">
+        <h1 class="page-title">Employee Management</h1>
+        <button class="btn-primary" (click)="toggleForm()">
+            {{ showAddForm ? 'Cancel' : 'Add New Employee' }}
+        </button>
+    </div>
+
+    <p *ngIf="error" class="login-panel__error">{{ error }}</p>
+
+    <div class="add-form" *ngIf="showAddForm">
+        <h3 class="form-title">
+            {{ isEditMode ? 'Edit Employee Details' : 'Add New Employee' }}
+        </h3>
+        
+        <form (ngSubmit)="saveEmployee()">
+            <div class="form-grid">
+                
+                <div class="form-group">
+                    <label for="fullName">Full Name</label>
+                    <input
+                        id="fullName"
+                        type="text"
+                        placeholder="e.g. Ahmed Mohamed Ali"
+                        name="fullName"
+                        [(ngModel)]="newEmployeeRequest.fullName"
+                        required
+                    />
+                </div>
+                <div class="form-group">
+                    <label for="employeeNumber">Employee Number</label>
+                    <input
+                        id="employeeNumber"
+                        type="text"
+                        placeholder="EMP-0001"
+                        name="employeeNumber"
+                        [(ngModel)]="newEmployeeRequest.employeeNumber"
+                        required
+                    />
+                </div>
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input
+                        id="email"
+                        type="email"
+                        placeholder="name@company.com"
+                        name="email"
+                        [(ngModel)]="newEmployeeRequest.email"
+                        required
+                    />
+                </div>
+                <div class="form-group">
+                    <label for="phoneNumber">Phone Number</label>
+                    <input
+                        id="phoneNumber"
+                        type="tel"
+                        placeholder="05xxxxxxxx"
+                        name="phoneNumber"
+                        [(ngModel)]="newEmployeeRequest.phoneNumber"
+                    />
+                </div>
+
+                <div class="form-group">
+                    <label for="departmentId">Department</label>
+                    <select id="departmentId" name="departmentId" [(ngModel)]="newEmployeeRequest.departmentId" required>
+                        <option [ngValue]="''" disabled>Select Department</option>
+                        <option *ngFor="let department of departments" [ngValue]="department.id">
+                            {{ department.name }}
+                        </option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="jobTitle">Job Title</label>
+                    <input
+                        id="jobTitle"
+                        type="text"
+                        placeholder="e.g. System Developer"
+                        name="jobTitle"
+                        [(ngModel)]="newEmployeeRequest.jobTitle"
+                    />
+                </div>
+                <div class="form-group">
+                    <label for="managerId">Direct Manager</label>
+                    <select id="managerId" name="managerId" [(ngModel)]="newEmployeeRequest.managerId">
+                        <option [ngValue]="null">Unassigned</option>
+                        <option *ngFor="let employee of employees" [ngValue]="employee.id">
+                            {{ employee.fullName }}
+                        </option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="status">Status</label>
+                    <select id="status" name="status" [(ngModel)]="newEmployeeRequest.status">
+                        <option *ngFor="let status of statusOptions" [ngValue]="status">{{ status }}</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="joinDate">Join Date</label>
+                    <input
+                        id="joinDate"
+                        type="date"
+                        name="joinDate"
+                        [(ngModel)]="newEmployeeRequest.joinDate"
+                    />
+                </div>
+                <div class="form-group">
+                    <label for="birthDate">Birth Date</label>
+                    <input
+                        id="birthDate"
+                        type="date"
+                        name="birthDate"
+                        [(ngModel)]="newEmployeeRequest.birthDate"
+                    />
+                </div>
+                <div class="form-group" *ngIf="!isEditMode"> 
+                    <label for="initialPassword">Initial Password (Optional)</label>
+                    <input
+                        id="initialPassword"
+                        type="text"
+                        placeholder="Optional temporary password"
+                        name="initialPassword"
+                        [(ngModel)]="newEmployeeRequest.initialPassword"
+                    />
+                </div>
+                
+                <div class="form-group"> 
+                    <label for="notes">Notes</label>
+                    <input
+                        id="notes"
+                        type="text"
+                        placeholder="Any additional details..."
+                        name="notes"
+                        [(ngModel)]="newEmployeeRequest.notes"
+                    />
+                </div>
+
+            </div>
+
+            <button
+                type="submit"
+                class="btn-primary"
+                [disabled]="saving"
+            >
+                {{ isEditMode ? 'Update Employee' : 'Add Employee' }}
+            </button>
+            <button
+                *ngIf="isEditMode && newEmployeeRequest.id"
+                type="button"
+                class="btn-primary"
+                style="background: #dc2626; margin-left: 10px;"
+                (click)="deleteEmployee(newEmployeeRequest.id)"
+                [disabled]="saving"
+            >
+                Delete
+            </button>
+        </form>
+    </div>
+
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Number</th>
+                    <th>Name</th>
+                    <th>Department</th>
+                    <th>Title</th>
+                    <th>Manager</th>
+                    <th>Status</th>
+                    <th>Join Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr *ngFor="let employee of employees; trackBy: trackByEmployeeId">
+                    <td>{{ employee.employeeNumber }}</td>
+                    <td>{{ employee.fullName }}</td>
+                    <td>{{ employee.departmentName }}</td>
+                    <td>{{ employee.jobTitle || '--' }}</td>
+                    <td>{{ employee.managerName || '--' }}</td>
+                    <td>
+                        <span class="badge" [class.active]="employee.status === 'Active'" [class.suspended]="employee.status === 'Suspended'" [class.terminated]="employee.status === 'Terminated'">
+                            {{ employee.status }}
+                        </span>
+                    </td>
+                    <td>{{ employee.joinDate | date }}</td>
+                    <td>
+                        <button class="btn link" type="button" (click)="selectEmployee(employee)">Edit</button>
+                        &nbsp;|&nbsp;
+                        <button class="btn link" type="button" style="color: #dc2626;" (click)="deleteEmployee(employee.id)">Delete</button>
+                    </td>
+                </tr>
+                <tr *ngIf="loading">
+                    <td colspan="8" class="empty-state">Loading employees...</td>
+                </tr>
+                <tr *ngIf="!loading && employees.length === 0">
+                    <td colspan="8" class="empty-state">No employees found</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>

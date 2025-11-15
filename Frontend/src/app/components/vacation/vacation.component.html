@@ -1,0 +1,88 @@
+<div class="page-container">
+  <div class="page-header">
+    <h1 class="page-title">Vacation Requests</h1>
+    <div class="toolbar">
+      <label>
+        Status:
+        <select [(ngModel)]="filter" name="filter" (change)="setFilter(filter)">
+          <option value="All">All</option>
+          <option *ngFor="let option of statusOptions" [value]="option">{{ option }}</option>
+        </select>
+      </label>
+    </div>
+    <button class="btn-primary" (click)="showAddForm = !showAddForm">
+      {{ showAddForm ? 'Cancel' : 'Request Vacation' }}
+    </button>
+  </div>
+
+  <p *ngIf="error" class="login-panel__error">{{ error }}</p>
+
+  <div class="add-form" *ngIf="showAddForm">
+    <h3 class="form-title">Request New Vacation</h3>
+    <form (ngSubmit)="addVacationRequest()">
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="start_date">Start Date</label>
+          <input id="start_date" type="date" [(ngModel)]="newRequest.startDate" name="start_date" required />
+        </div>
+
+        <div class="form-group">
+          <label for="end_date">End Date</label>
+          <input id="end_date" type="date" [(ngModel)]="newRequest.endDate" name="end_date" required />
+        </div>
+
+        <div class="form-group full-width">
+          <label for="reason">Reason</label>
+          <textarea id="reason" [(ngModel)]="newRequest.reason" name="reason" rows="4" required></textarea>
+        </div>
+      </div>
+
+      <button type="submit" class="btn-primary" [disabled]="saving">Submit Request</button>
+    </form>
+  </div>
+
+  <div class="table-container">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Employee</th>
+          <th>Start Date</th>
+          <th>End Date</th>
+          <th>Reason</th>
+          <th>Status</th>
+          <th>Requested On</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let request of requests">
+          <td>{{ request.employeeName || 'N/A' }}</td>
+          <td>{{ request.startDate | date }}</td>
+          <td>{{ request.endDate | date }}</td>
+          <td>{{ request.reason }}</td>
+          <td>
+            <span class="status-badge" [class]="'status-' + request.status.toLowerCase()">
+              {{ request.status }}
+            </span>
+          </td>
+          <td>{{ request.createdAt | date: 'short' }}</td>
+          <td class="actions-column">
+            <button type="button" class="btn link" (click)="updateStatus(request, 'Approved')" [disabled]="request.status === 'Approved'">
+              Approve
+            </button>
+            <button type="button" class="btn link" (click)="updateStatus(request, 'Rejected')" [disabled]="request.status === 'Rejected'">
+              Reject
+            </button>
+            <button type="button" class="btn link" (click)="deleteRequest(request)">Delete</button>
+          </td>
+        </tr>
+        <tr *ngIf="loading">
+          <td colspan="7" class="empty-state">Loading requests...</td>
+        </tr>
+        <tr *ngIf="!loading && requests.length === 0">
+          <td colspan="7" class="empty-state">No vacation requests found</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

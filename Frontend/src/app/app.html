@@ -1,0 +1,24 @@
+<div class="app-container">
+  <header *ngIf="employee$ | async as employee" class="app-header">
+    <div class="brand">
+      <span class="brand__logo">Company Portal</span>
+      <span class="brand__welcome">Welcome back, {{ employee.fullName }}</span>
+    </div>
+    <nav class="app-nav">
+      <a
+        *ngFor="let link of links; trackBy: trackByPath"
+        [routerLink]="link.path"
+        routerLinkActive="is-active"
+        [routerLinkActiveOptions]="{ exact: true }"
+        class="app-nav__link"
+      >
+        {{ link.label }}
+      </a>
+    </nav>
+    <button type="button" class="logout-button" (click)="logout()">Sign out</button>
+  </header>
+
+  <main class="app-main">
+    <router-outlet></router-outlet>
+  </main>
+</div>

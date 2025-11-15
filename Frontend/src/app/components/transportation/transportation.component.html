@@ -1,0 +1,109 @@
+<div class="page-container">
+      <div class="page-header">
+        <h1 class="page-title">My Trips</h1>
+        <button class="btn-primary" (click)="toggleForm()">
+          {{ showAddForm ? 'Cancel' : 'Add New Trip' }}
+        </button>
+      </div>
+
+      <p *ngIf="error" class="login-panel__error">{{ error }}</p>
+
+      <div class="add-form" *ngIf="showAddForm">
+        <h3 class="form-title">Add New Trip</h3>
+        <form (ngSubmit)="addTrip()">
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="reference_name">Reference Name</label>
+              <input
+                id="reference_name"
+                type="text"
+                [(ngModel)]="newTrip.referenceName"
+                name="reference_name"
+                required
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="route">Route</label>
+              <select id="route" [(ngModel)]="newTrip.route" name="route" required>
+                <option value="">Select a route</option>
+                <option value="Route A">Route A</option>
+                <option value="Route B">Route B</option>
+                <option value="Route C">Route C</option>
+                <option value="Route D">Route D</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="trip_type">Trip Type</label>
+              <select id="trip_type" [(ngModel)]="newTrip.tripType" name="trip_type" required>
+                <option value="">Select a type</option>
+                <option value="Go">Go</option>
+                <option value="Return">Return</option>
+                <option value="Go & Return">Go & Return</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="project">Project</label>
+              <select id="project" [(ngModel)]="newTrip.project" name="project" required>
+                <option value="">Select a project</option>
+                <option value="FAB2316">FAB2316</option>
+                <option value="NXT2102">NXT2102</option>
+                <option value="MID">MID</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="trip_date">Trip Date</label>
+              <input
+                id="trip_date"
+                type="date"
+                [(ngModel)]="newTrip.tripDate"
+                name="trip_date"
+                required
+              />
+            </div>
+          </div>
+
+          <button type="submit" class="btn-primary" [disabled]="saving">Add Trip</button>
+        </form>
+      </div>
+
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Trip Code</th>
+              <th>Reference Name</th>
+              <th>Project</th>
+              <th>Route</th>
+              <th>Type</th>
+              <th>Date</th>
+              <th>Request Code</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let trip of trips; trackBy: trackByTripId">
+              <td>{{ trip.tripCode }}</td>
+              <td>{{ trip.referenceName }}</td>
+              <td>{{ trip.project }}</td>
+              <td>{{ trip.route }}</td>
+              <td>{{ trip.tripType }}</td>
+              <td>{{ trip.tripDate | date }}</td>
+              <td>{{ trip.requestCode }}</td>
+              <td>
+                <button type="button" class="btn link" (click)="deleteTrip(trip)">Delete</button>
+              </td>
+            </tr>
+            <tr *ngIf="!loading && trips.length === 0">
+              <td colspan="8" class="empty-state">No trips found</td>
+            </tr>
+            <tr *ngIf="loading">
+              <td colspan="8" class="empty-state">Loading trips...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>

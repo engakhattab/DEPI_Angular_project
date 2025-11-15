@@ -1,0 +1,303 @@
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap");
+
+/* Reset & Global Styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box; /* هام للحفاظ على الأبعاد */
+    font-family: "Poppins", sans-serif; /* خط حديث */
+}
+
+body {
+    display: flex;
+    flex-direction: column; /* لجعل العناصر تتكدس عمودياً (Navbar ثم البطاقات) */
+    justify-content: flex-start; /* يبدأ المحتوى من الأعلى */
+    align-items: center; /* توسيط أفقي لكل المحتوى في الـ body */
+    min-height: 100vh;
+    background: #1a1a2e; /* خلفية داكنة موحدة كما في الصورة */
+    color: #e0e0e0; /* لون نص فاتح للخلفية الداكنة */
+    overflow-x: hidden; /* منع التمرير الأفقي الزائد */
+}
+
+/* Navbar Enhancements */
+.navbar {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #16213e; /* لون أغمق قليلاً من الخلفية للـ Navbar */
+    padding: 15px 50px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3); /* ظل أغمق قليلاً */
+    color: #e0e0e0;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+
+.navbar .company-info { /* حاوية جديدة لمعلومات الشركة والترحيب */
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.navbar .company-portal {
+    font-size: 1.8em;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #e0e0e0;
+    margin-bottom: 5px; /* مسافة أسفل عنوان البوابة */
+}
+
+.navbar .welcome-message {
+    font-size: 0.9em;
+    color: #a0a0a0; /* لون أفتح قليلاً لرسالة الترحيب */
+}
+
+.navbar .nav-links {
+    display: flex;
+    align-items: center;
+    flex-grow: 1; /* للسماح للروابط بأخذ مساحة أكبر */
+    justify-content: center; /* توسيط الروابط بين الشعار وزر تسجيل الخروج */
+}
+
+.navbar .nav-links a {
+    color: #e0e0e0;
+    text-decoration: none;
+    font-weight: 500;
+    margin: 0 20px; /* مسافة بين الروابط */
+    font-size: 1.1em;
+    position: relative;
+    padding: 5px 0; /* مسافة داخلية للـ hover effect */
+    transition: color 0.3s ease, transform 0.3s ease;
+}
+
+.navbar .nav-links a::after {
+    content: '';
+    position: absolute;
+    width: 0%;
+    height: 3px; /* خط أكثر سمكًا */
+    background: #8e2de2; /* لون بنفسجي جذاب للخط */
+    left: 50%; /* يبدأ من المنتصف */
+    transform: translateX(-50%); /* ليبقى متوسّطاً */
+    bottom: -5px;
+    transition: width 0.3s ease;
+    border-radius: 2px; /* حواف دائرية للخط */
+}
+
+.navbar .nav-links a.active, /* لتمييز الرابط النشط */
+.navbar .nav-links a:hover {
+    color: #8e2de2; /* لون بنفسجي عند التحليق أو كنشط */
+    transform: translateY(-2px);
+}
+
+.navbar .nav-links a.active::after,
+.navbar .nav-links a:hover::after {
+    width: 100%; /* الخط يمتد بالكامل */
+}
+
+.navbar .sign-out-btn { /* زر تسجيل الخروج */
+    background: #8e2de2; /* نفس لون الـ hover */
+    color: #fff;
+    border: none;
+    padding: 10px 25px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 1em;
+    font-weight: 500;
+    transition: background 0.3s ease, transform 0.3s ease;
+}
+
+.navbar .sign-out-btn:hover {
+    background: #a766ef; /* لون أفتح عند التحليق */
+    transform: translateY(-2px);
+}
+
+
+/* Cards Container - توسيط البطاقات في المنتصف */
+.cards {
+    display: flex;
+    gap: 40px; /* مسافة أكبر بين البطاقات */
+    flex-wrap: wrap;
+    justify-content: center; /* توسيط البطاقات أفقياً */
+    align-items: center; /* توسيط البطاقات عمودياً */
+    padding: 50px 20px;
+    max-width: 1300px;
+    width: 100%;
+    flex-grow: 1; /* يسمح للحاوية بأخذ المساحة المتبقية وتوسيط البطاقات عمودياً */
+}
+
+/* Card Design */
+.card {
+    position: relative;
+    width: 340px;
+    height: 480px; /* ارتفاع البطاقة */
+    background: #ffffff; /* خلفية البطاقة بيضاء */
+    border-radius: 25px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94), box-shadow 0.4s ease;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    padding: 25px;
+    perspective: 1000px;
+}
+
+/* Hover Effect for Card */
+.card:hover {
+    transform: translateY(-15px) rotateY(2deg); /* دوران أخف */
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.25);
+}
+
+/* Card Pseudo-element (Background Wave) */
+.card::before {
+    content: "";
+    position: absolute;
+    top: -60%;
+    width: 120%;
+    height: 100%;
+    background: #6a5acd; /* لون أزرق-بنفسجي متناسق مع الـ Navbar */
+    transform: skewY(340deg) scale(1.1);
+    transition: 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    border-radius: 0 0 50% 50%;
+    z-index: 0;
+}
+
+.card:hover::before {
+    top: -90%;
+    transform: skewY(380deg) scale(1.2);
+}
+
+/* Image Box */
+.card .imgBox {
+    position: relative;
+    width: 100%;
+    height: 200px; /* ارتفاع أقل للصور */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1;
+    
+    margin-bottom: 10px;
+}
+
+.card .imgBox img {
+    max-width: 80%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: 10px;
+    filter: drop-shadow(0 5px 10px rgba(0, 0, 0, 0.1));
+    transition: transform 0.3s ease, filter 0.3s ease;
+}
+
+.card:hover .imgBox img {
+    transform: scale(1.08) rotateZ(-3deg); /* تأثير دوران مختلف */
+}
+
+/* Content Box */
+.card .contentBox {
+    position: relative;
+    padding: 0 15px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    z-index: 1;
+    width: 100%;
+    flex-grow: 1;
+    text-align: center;
+}
+
+/* Card Title */
+.card .contentBox h3 {
+    font-size: 1.6em;
+    color: #333; /* لون نص داكن */
+    font-weight: 600;
+    text-transform: capitalize;
+    letter-spacing: 0.5px;
+    margin-bottom: 20px;
+    line-height: 1.3;
+}
+
+/* Enter Button */
+.card .contentBox .buy {
+    opacity: 0;
+    padding: 14px 35px;
+    margin-top: auto;
+    color: #ffffff;
+    text-decoration: none;
+    background: #8e2de2; /* لون بنفسجي موحد للزر */
+    border-radius: 30px;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    font-weight: 600;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    transition: 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    transform: translateY(30px);
+}
+
+.card:hover .contentBox .buy {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.card .contentBox .buy:hover {
+    background: #a766ef; /* لون أفتح عند التحليق */
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* Media Queries for Responsiveness */
+@media (max-width: 992px) { /* تعديل نقطة التوقف للشاشات اللوحية */
+    .navbar {
+        flex-direction: column;
+        align-items: flex-start; /* لتبدأ من اليسار على الشاشات الصغيرة */
+        padding: 15px 30px;
+    }
+    .navbar .company-info {
+        width: 100%;
+        margin-bottom: 15px;
+    }
+    .navbar .nav-links {
+        flex-direction: column; /* الروابط عمودياً */
+        align-items: flex-start;
+        margin-left: 0; /* إلغاء التوسيط */
+        width: 100%;
+    }
+    .navbar .nav-links a {
+        margin: 8px 0; /* مسافة عمودية بين الروابط */
+    }
+    .navbar .sign-out-btn {
+        margin-top: 15px;
+        align-self: flex-end; /* ليبقى زر تسجيل الخروج على اليمين */
+    }
+    .cards {
+        padding: 30px 10px;
+        gap: 30px;
+    }
+    .card {
+        width: 85%; /* تجعل البطاقات تأخذ عرض أكبر على الشاشات الصغيرة */
+        height: auto; /* ارتفاع تلقائي للمحتوى */
+    }
+    .card .imgBox {
+        height: 150px; /* ارتفاع أقل للصور على الجوال */
+    }
+}
+@media (max-width: 576px) { /* للجوالات الصغيرة جداً */
+    .navbar {
+        padding: 10px 15px;
+    }
+    .navbar .company-portal {
+        font-size: 1.5em;
+    }
+    .navbar .welcome-message {
+        font-size: 0.8em;
+    }
+    .navbar .sign-out-btn {
+        padding: 8px 20px;
+        font-size: 0.9em;
+    }
+    .card {
+        width: 95%;
+    }
+}
