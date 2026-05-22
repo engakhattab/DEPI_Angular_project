@@ -20,7 +20,7 @@ description: "Task list for Phase 1 — Global Exception Handling & Pagination I
 
 **Purpose**: Ensure the HR.Shared project has the EF Core dependency needed for PagedList<T>
 
-- [ ] T001 Add the NuGet package `Microsoft.EntityFrameworkCore` (version 8.0.20) to `HR.Shared/HR.Shared.csproj`. Add this ItemGroup block after the PropertyGroup: `<ItemGroup><PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.20" /></ItemGroup>`. This is needed because PagedList<T> uses `CountAsync` and `ToListAsync` extension methods from EF Core.
+- [x] T001 Add the NuGet package `Microsoft.EntityFrameworkCore` (version 8.0.20) to `HR.Shared/HR.Shared.csproj`. Add this ItemGroup block after the PropertyGroup: `<ItemGroup><PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.20" /></ItemGroup>`. This is needed because PagedList<T> uses `CountAsync` and `ToListAsync` extension methods from EF Core.
 
 ---
 
@@ -40,7 +40,7 @@ description: "Task list for Phase 1 — Global Exception Handling & Pagination I
 
 ### Implementation for User Story 1
 
-- [ ] T002 [US1] Create the directory `HR.API/Middleware/` if it does not already exist. Then create the file `HR.API/Middleware/GlobalExceptionMiddleware.cs` with the following EXACT content:
+- [x] T002 [US1] Create the directory `HR.API/Middleware/` if it does not already exist. Then create the file `HR.API/Middleware/GlobalExceptionMiddleware.cs` with the following EXACT content:
 
 ```csharp
 using HR.Domain.Exceptions;
@@ -85,7 +85,7 @@ public class GlobalExceptionMiddleware(RequestDelegate next, ILogger<GlobalExcep
 }
 ```
 
-- [ ] T003 [US1] Register the middleware in `HR.API/Program.cs`. Find the line `var app = builder.Build();` and add the middleware registration IMMEDIATELY after it (before any other `app.Use...` calls). Add this line: `app.UseMiddleware<HR.API.Middleware.GlobalExceptionMiddleware>();`. Also add the using statement `using HR.API.Middleware;` at the top of the file if not already present. The middleware MUST be the FIRST middleware in the pipeline (before UseSwagger, UseHttpsRedirection, UseCors, UseAuthorization, etc.). The final pipeline order should be:
+- [x] T003 [US1] Register the middleware in `HR.API/Program.cs`. Find the line `var app = builder.Build();` and add the middleware registration IMMEDIATELY after it (before any other `app.Use...` calls). Add this line: `app.UseMiddleware<HR.API.Middleware.GlobalExceptionMiddleware>();`. Also add the using statement `using HR.API.Middleware;` at the top of the file if not already present. The middleware MUST be the FIRST middleware in the pipeline (before UseSwagger, UseHttpsRedirection, UseCors, UseAuthorization, etc.). The final pipeline order should be:
 
 ```
 var app = builder.Build();
@@ -111,7 +111,7 @@ app.Run();
 
 ### Implementation for User Story 2
 
-- [ ] T004 [US2] Create the directory `HR.Shared/Pagination/` if it does not already exist. Then create the file `HR.Shared/Pagination/PagedList.cs` with the following EXACT content:
+- [x] T004 [US2] Create the directory `HR.Shared/Pagination/` if it does not already exist. Then create the file `HR.Shared/Pagination/PagedList.cs` with the following EXACT content:
 
 ```csharp
 using Microsoft.EntityFrameworkCore;
@@ -157,8 +157,8 @@ public class PagedList<T>
 
 **Purpose**: Final validation
 
-- [ ] T005 Run `dotnet build` from the solution root directory to verify zero compilation errors across all 5 projects (HR.API, HR.Application, HR.Infrastructure, HR.Domain, HR.Shared)
-- [ ] T006 Run the API with `dotnet run --project HR.API` and verify Swagger UI loads at `https://localhost:<port>/swagger`. Confirm all existing endpoints are listed and return expected responses.
+- [x] T005 Run `dotnet build` from the solution root directory to verify zero compilation errors across all 5 projects (HR.API, HR.Application, HR.Infrastructure, HR.Domain, HR.Shared)
+- [x] T006 Run the API with `dotnet run --project HR.API` and verify Swagger UI loads at `https://localhost:<port>/swagger`. Confirm all existing endpoints are listed and return expected responses.
 
 ---
 
