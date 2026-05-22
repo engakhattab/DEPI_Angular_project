@@ -1,72 +1,58 @@
 ---
 name: speckit-git-feature
-description: Create a feature branch with sequential or timestamp numbering
+description: "[DISABLED] Suggest feature branch commands — never execute. Read-only mode."
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
   author: github-spec-kit
   source: git:commands/speckit.git.feature.md
+  policy: safe-repository-mode-v1
 ---
 
-# Create Feature Branch
+# Create Feature Branch — DISABLED (Read-Only Mode)
 
-Create and switch to a new git feature branch for the given specification. This command handles **branch creation only** — the spec directory and files are created by the core `/speckit-specify` workflow.
+> [!CAUTION]
+> **SAFE REPOSITORY MODE ACTIVE.** This skill is permanently set to read-only.
+> It must NEVER create branches, switch branches, or execute any repository-modifying command.
 
-## User Input
+## Behavior
 
-```text
-$ARGUMENTS
+This command is **disabled by policy**. When invoked (directly or via hook), it must:
+
+1. **Refuse to execute** any Git write operation.
+2. **Analyze** the feature description and generate a suggested branch name.
+3. **Output a suggestion** showing the user the branch creation command.
+4. **Label the output** with `⚠️ MANUAL EXECUTION REQUIRED`.
+5. **Never** run `git checkout -b`, `git switch -c`, `git branch`, or any branch creation script.
+6. **Never** invoke `.specify/extensions/git/scripts/*/create-new-feature.*`.
+
+## Required Output Format
+
+When this skill is triggered, output ONLY the following:
+
+```
+⚠️ MANUAL EXECUTION REQUIRED — Branch creation is disabled (Safe Repository Mode)
+
+Suggested branch name: <generated-branch-name>
+
+To create this branch manually, run:
+
+  git checkout -b <generated-branch-name>
+
+This skill will not execute this command automatically.
 ```
 
-You **MUST** consider the user input before proceeding (if not empty).
+## Branch Name Generation (Read-Only)
 
-## Environment Variable Override
+The skill may still perform read-only analysis to suggest a branch name:
+- Read the feature description
+- Generate a concise 2-4 word short name
+- Determine the numbering mode (sequential/timestamp) from config
+- Output the suggested name as text only
 
-If the user explicitly provided `GIT_BRANCH_NAME` (e.g., via environment variable, argument, or in their request), pass it through to the script by setting the `GIT_BRANCH_NAME` environment variable before invoking the script. When `GIT_BRANCH_NAME` is set:
-- The script uses the exact value as the branch name, bypassing all prefix/suffix generation
-- `--short-name`, `--number`, and `--timestamp` flags are ignored
-- `FEATURE_NUM` is extracted from the name if it starts with a numeric prefix, otherwise set to the full branch name
+## Forbidden Operations
 
-## Prerequisites
-
-- Verify Git is available by running `git rev-parse --is-inside-work-tree 2>/dev/null`
-- If Git is not available, warn the user and skip branch creation
-
-## Branch Numbering Mode
-
-Determine the branch numbering strategy by checking configuration in this order:
-
-1. Check `.specify/extensions/git/git-config.yml` for `branch_numbering` value
-2. Check `.specify/init-options.json` for `branch_numbering` value (backward compatibility)
-3. Default to `sequential` if neither exists
-
-## Execution
-
-Generate a concise short name (2-4 words) for the branch:
-- Analyze the feature description and extract the most meaningful keywords
-- Use action-noun format when possible (e.g., "add-user-auth", "fix-payment-bug")
-- Preserve technical terms and acronyms (OAuth2, API, JWT, etc.)
-
-Run the appropriate script based on your platform:
-
-- **Bash**: `.specify/extensions/git/scripts/bash/create-new-feature.sh --json --short-name "<short-name>" "<feature description>"`
-- **Bash (timestamp)**: `.specify/extensions/git/scripts/bash/create-new-feature.sh --json --timestamp --short-name "<short-name>" "<feature description>"`
-- **PowerShell**: `.specify/extensions/git/scripts/powershell/create-new-feature.ps1 -Json -ShortName "<short-name>" "<feature description>"`
-- **PowerShell (timestamp)**: `.specify/extensions/git/scripts/powershell/create-new-feature.ps1 -Json -Timestamp -ShortName "<short-name>" "<feature description>"`
-
-**IMPORTANT**:
-- Do NOT pass `--number` — the script determines the correct next number automatically
-- Always include the JSON flag (`--json` for Bash, `-Json` for PowerShell) so the output can be parsed reliably
-- You must only ever run this script once per feature
-- The JSON output will contain `BRANCH_NAME` and `FEATURE_NUM`
-
-## Graceful Degradation
-
-If Git is not installed or the current directory is not a Git repository:
-- Branch creation is skipped with a warning: `[specify] Warning: Git repository not detected; skipped branch creation`
-- The script still outputs `BRANCH_NAME` and `FEATURE_NUM` so the caller can reference them
-
-## Output
-
-The script outputs JSON with:
-- `BRANCH_NAME`: The branch name (e.g., `003-user-auth` or `20260319-143022-user-auth`)
-- `FEATURE_NUM`: The numeric or timestamp prefix used
+- `git checkout -b` (any form)
+- `git switch -c` (any form)
+- `git branch <name>` (any form)
+- Execution of `create-new-feature.sh` or `create-new-feature.ps1`
+- Any shell command that creates or switches branches

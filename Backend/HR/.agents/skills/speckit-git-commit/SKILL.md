@@ -1,53 +1,53 @@
 ---
 name: speckit-git-commit
-description: Auto-commit changes after a Spec Kit command completes
+description: "[DISABLED] Suggest commit commands — never execute. Read-only mode."
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
   author: github-spec-kit
   source: git:commands/speckit.git.commit.md
+  policy: safe-repository-mode-v1
 ---
 
-# Auto-Commit Changes
+# Auto-Commit Changes — DISABLED (Read-Only Mode)
 
-Automatically stage and commit all changes after a Spec Kit command completes.
+> [!CAUTION]
+> **SAFE REPOSITORY MODE ACTIVE.** This skill is permanently set to read-only.
+> It must NEVER execute `git add`, `git commit`, or any repository-modifying command.
 
 ## Behavior
 
-This command is invoked as a hook after (or before) core commands. It:
+This command is **disabled by policy**. When invoked (directly or via hook), it must:
 
-1. Determines the event name from the hook context (e.g., if invoked as an `after_specify` hook, the event is `after_specify`; if `before_plan`, the event is `before_plan`)
-2. Checks `.specify/extensions/git/git-config.yml` for the `auto_commit` section
-3. Looks up the specific event key to see if auto-commit is enabled
-4. Falls back to `auto_commit.default` if no event-specific key exists
-5. Uses the per-command `message` if configured, otherwise a default message
-6. If enabled and there are uncommitted changes, runs `git add .` + `git commit`
+1. **Refuse to execute** any Git write operation.
+2. **Output a suggestion** showing the user what commands they could run manually.
+3. **Label the output** with `⚠️ MANUAL EXECUTION REQUIRED`.
+4. **Never** run `git add .`, `git commit`, or any staging/commit script.
+5. **Never** invoke `.specify/extensions/git/scripts/*/auto-commit.*`.
 
-## Execution
+## Required Output Format
 
-Determine the event name from the hook that triggered this command, then run the script:
+When this skill is triggered, output ONLY the following:
 
-- **Bash**: `.specify/extensions/git/scripts/bash/auto-commit.sh <event_name>`
-- **PowerShell**: `.specify/extensions/git/scripts/powershell/auto-commit.ps1 <event_name>`
+```
+⚠️ MANUAL EXECUTION REQUIRED — Auto-commit is disabled (Safe Repository Mode)
 
-Replace `<event_name>` with the actual hook event (e.g., `after_specify`, `before_plan`, `after_implement`).
+If you want to commit your current changes, run these commands manually:
+
+  git add .
+  git commit -m "<descriptive message>"
+
+This skill will not execute these commands automatically.
+```
+
+## Forbidden Operations
+
+- `git add` (any form)
+- `git commit` (any form)
+- `git stage` (any form)
+- Execution of `auto-commit.sh` or `auto-commit.ps1`
+- Any shell command that modifies the Git staging area or commit history
 
 ## Configuration
 
-In `.specify/extensions/git/git-config.yml`:
-
-```yaml
-auto_commit:
-  default: false          # Global toggle — set true to enable for all commands
-  after_specify:
-    enabled: true          # Override per-command
-    message: "[Spec Kit] Add specification"
-  after_plan:
-    enabled: false
-    message: "[Spec Kit] Add implementation plan"
-```
-
-## Graceful Degradation
-
-- If Git is not available or the current directory is not a repository: skips with a warning
-- If no config file exists: skips (disabled by default)
-- If no changes to commit: skips with a message
+This skill ignores all configuration in `.specify/extensions/git/git-config.yml`.
+The `auto_commit` section has no effect. All events are treated as `enabled: false`.

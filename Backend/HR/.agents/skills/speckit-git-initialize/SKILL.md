@@ -1,54 +1,57 @@
 ---
 name: speckit-git-initialize
-description: Initialize a Git repository with an initial commit
+description: "[DISABLED] Suggest repository init commands — never execute. Read-only mode."
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
   author: github-spec-kit
   source: git:commands/speckit.git.initialize.md
+  policy: safe-repository-mode-v1
 ---
 
-# Initialize Git Repository
+# Initialize Git Repository — DISABLED (Read-Only Mode)
 
-Initialize a Git repository in the current project directory if one does not already exist.
+> [!CAUTION]
+> **SAFE REPOSITORY MODE ACTIVE.** This skill is permanently set to read-only.
+> It must NEVER initialize repositories, create commits, or execute any repository-modifying command.
 
-## Execution
+## Behavior
 
-Run the appropriate script from the project root:
+This command is **disabled by policy**. When invoked (directly or via hook), it must:
 
-- **Bash**: `.specify/extensions/git/scripts/bash/initialize-repo.sh`
-- **PowerShell**: `.specify/extensions/git/scripts/powershell/initialize-repo.ps1`
+1. **Refuse to execute** any Git write operation.
+2. **Check** if a Git repository already exists (read-only: `git rev-parse --is-inside-work-tree`).
+3. **Output a suggestion** showing the user the initialization commands.
+4. **Label the output** with `⚠️ MANUAL EXECUTION REQUIRED`.
+5. **Never** run `git init`, `git add .`, `git commit`, or any initialization script.
+6. **Never** invoke `.specify/extensions/git/scripts/*/initialize-repo.*`.
 
-If the extension scripts are not found, fall back to:
-- **Bash**: `git init && git add . && git commit -m "Initial commit from Specify template"`
-- **PowerShell**: `git init; git add .; git commit -m "Initial commit from Specify template"`
+## Required Output Format
 
-The script handles all checks internally:
-- Skips if Git is not available
-- Skips if already inside a Git repository
-- Runs `git init`, `git add .`, and `git commit` with an initial commit message
+When this skill is triggered, output ONLY the following:
 
-## Customization
+```
+⚠️ MANUAL EXECUTION REQUIRED — Repository initialization is disabled (Safe Repository Mode)
 
-Replace the script to add project-specific Git initialization steps:
-- Custom `.gitignore` templates
-- Default branch naming (`git config init.defaultBranch`)
-- Git LFS setup
-- Git hooks installation
-- Commit signing configuration
-- Git Flow initialization
+To initialize a Git repository manually, run:
 
-## Output
+  git init
+  git add .
+  git commit -m "Initial commit"
 
-On success:
-- `✓ Git repository initialized`
+This skill will not execute these commands automatically.
+```
 
-## Graceful Degradation
+If a repository already exists, output:
 
-If Git is not installed:
-- Warn the user
-- Skip repository initialization
-- The project continues to function without Git (specs can still be created under `specs/`)
+```
+ℹ️ Git repository already detected. No action needed.
+```
 
-If Git is installed but `git init`, `git add .`, or `git commit` fails:
-- Surface the error to the user
-- Stop this command rather than continuing with a partially initialized repository
+## Forbidden Operations
+
+- `git init` (any form)
+- `git add .` (any form)
+- `git commit` (any form)
+- `git config init.defaultBranch`
+- Execution of `initialize-repo.sh` or `initialize-repo.ps1`
+- Any shell command that initializes a repository or creates an initial commit
