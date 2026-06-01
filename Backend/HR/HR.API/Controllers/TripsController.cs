@@ -1,44 +1,40 @@
+using HR.API.Extensions;
 using HR.Application.DTOs.Transportation;
-using HR.Domain.Entities;
-using HR.Infrastructure.Data;
+using HR.Application.Transportation;
+using HR.Shared.Pagination;
+using HR.Shared.Results;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace HR.API.Controllers;
 
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
-public class TripsController(ApplicationDbContext context, ILogger<TripsController> logger) : ControllerBase
+public class TripsController(ITripService tripService) : ControllerBase
 {
-    private readonly ApplicationDbContext _context = context;
-    private readonly ILogger<TripsController> _logger = logger;
+    private readonly ITripService _tripService = tripService;
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<TripResponse>>> GetTrips(CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedList<TripResponse>>> GetTrips(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        CancellationToken cancellationToken = default)
     {
-        var trips = await _context.Trips
-            .AsNoTracking()
-            .OrderByDescending(t => t.CreatedAt)
-            .ToListAsync(cancellationToken);
-
-        return trips.Select(TripResponse.FromEntity).ToList();
+        var result = await _tripService.GetTripsAsync(page, pageSize, cancellationToken);
+        return Ok(result);
     }
 
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<TripResponse>> GetTrip(Guid id, CancellationToken cancellationToken)
     {
-        var trip = await _context.Trips
-            .AsNoTracking()
-            .FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
-
+        var trip = await _tripService.GetTripByIdAsync(id, cancellationToken);
         if (trip is null)
         {
-            return NotFound();
+            return this.ToActionResult(ServiceError.NotFound($"Trip '{id}' was not found.", "NOT_FOUND"));
         }
 
-        return TripResponse.FromEntity(trip);
+        return Ok(trip);
     }
 
     [HttpPost]
@@ -51,42 +47,24 @@ public class TripsController(ApplicationDbContext context, ILogger<TripsControll
             return ValidationProblem(ModelState);
         }
 
-        var trip = new Trip
+        var result = await _tripService.CreateTripAsync(request, cancellationToken);
+        if (!result.IsSuccess)
         {
-            ReferenceName = request.ReferenceName,
-            Project = request.Project,
-            Route = request.Route,
-            TripType = request.TripType,
-            TripDate = request.TripDate,
-            TripCode = GenerateCode("TRIP"),
-            RequestCode = GenerateCode("REQ"),
-            CreatedAt = DateTimeOffset.UtcNow
-        };
+            return this.ToActionResult(result.Error!);
+        }
 
-        _context.Trips.Add(trip);
-        await _context.SaveChangesAsync(cancellationToken);
-
-        var response = TripResponse.FromEntity(trip);
-        return CreatedAtAction(nameof(GetTrip), new { id = trip.Id }, response);
+        return CreatedAtAction(nameof(GetTrip), new { id = result.Value!.Id }, result.Value);
     }
 
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> DeleteTrip(Guid id, CancellationToken cancellationToken)
     {
-        var trip = await _context.Trips.FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
-        if (trip is null)
+        var result = await _tripService.DeleteTripAsync(id, cancellationToken);
+        if (!result.IsSuccess)
         {
-            return NotFound();
+            return this.ToActionResult(result.Error!);
         }
 
-        _context.Trips.Remove(trip);
-        await _context.SaveChangesAsync(cancellationToken);
         return NoContent();
-    }
-
-    private static string GenerateCode(string prefix)
-    {
-        var suffix = Guid.NewGuid().ToString("N")[..6].ToUpperInvariant();
-        return $"{prefix}-{suffix}";
     }
 }

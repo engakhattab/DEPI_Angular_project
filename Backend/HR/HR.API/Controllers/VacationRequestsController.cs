@@ -1,60 +1,49 @@
+using HR.API.Extensions;
 using HR.Application.DTOs.VacationRequests;
-using HR.Domain.Entities;
+using HR.Application.VacationRequests;
 using HR.Domain.Enums;
-using HR.Infrastructure.Data;
+using HR.Shared.Pagination;
+using HR.Shared.Results;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace HR.API.Controllers;
 
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
-public class VacationRequestsController(ApplicationDbContext context, ILogger<VacationRequestsController> logger) : ControllerBase
+public class VacationRequestsController(IVacationRequestService vacationRequestService) : ControllerBase
 {
-    private readonly ApplicationDbContext _context = context;
-    private readonly ILogger<VacationRequestsController> _logger = logger;
+    private readonly IVacationRequestService _vacationRequestService = vacationRequestService;
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<VacationRequestResponse>>> GetVacationRequests(
+    public async Task<ActionResult<PagedList<VacationRequestResponse>>> GetVacationRequests(
         [FromQuery] VacationRequestStatus? status = null,
         [FromQuery] Guid? employeeId = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
         CancellationToken cancellationToken = default)
     {
-        IQueryable<VacationRequest> query = _context.VacationRequests
-            .AsNoTracking()
-            .Include(v => v.Employee)
-            .OrderByDescending(v => v.CreatedAt);
+        var result = await _vacationRequestService.GetVacationRequestsAsync(
+            status,
+            employeeId,
+            page,
+            pageSize,
+            cancellationToken);
 
-        if (status.HasValue)
-        {
-            query = query.Where(v => v.Status == status.Value);
-        }
-
-        if (employeeId.HasValue)
-        {
-            query = query.Where(v => v.EmployeeId == employeeId.Value);
-        }
-
-        var requests = await query.ToListAsync(cancellationToken);
-        return requests.Select(VacationRequestResponse.FromEntity).ToList();
+        return Ok(result);
     }
 
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<VacationRequestResponse>> GetVacationRequest(Guid id, CancellationToken cancellationToken)
     {
-        var request = await _context.VacationRequests
-            .AsNoTracking()
-            .Include(v => v.Employee)
-            .FirstOrDefaultAsync(v => v.Id == id, cancellationToken);
-
+        var request = await _vacationRequestService.GetVacationRequestByIdAsync(id, cancellationToken);
         if (request is null)
         {
-            return NotFound();
+            return this.ToActionResult(ServiceError.NotFound($"Vacation request '{id}' was not found.", "NOT_FOUND"));
         }
 
-        return VacationRequestResponse.FromEntity(request);
+        return Ok(request);
     }
 
     [HttpPost]
@@ -67,37 +56,13 @@ public class VacationRequestsController(ApplicationDbContext context, ILogger<Va
             return ValidationProblem(ModelState);
         }
 
-        if (request.StartDate > request.EndDate)
+        var result = await _vacationRequestService.CreateVacationRequestAsync(request, cancellationToken);
+        if (!result.IsSuccess)
         {
-            ModelState.AddModelError(nameof(request.EndDate), "End date must be on or after the start date.");
-            return ValidationProblem(ModelState);
+            return this.ToActionResult(result.Error!);
         }
 
-        var employee = await _context.Employees
-            .AsNoTracking()
-            .FirstOrDefaultAsync(e => e.Id == request.EmployeeId, cancellationToken);
-
-        if (employee is null)
-        {
-            return NotFound($"Employee '{request.EmployeeId}' was not found.");
-        }
-
-        var vacationRequest = new VacationRequest
-        {
-            EmployeeId = request.EmployeeId,
-            StartDate = request.StartDate,
-            EndDate = request.EndDate,
-            Reason = request.Reason,
-            Status = VacationRequestStatus.Pending,
-            CreatedAt = DateTimeOffset.UtcNow
-        };
-
-        _context.VacationRequests.Add(vacationRequest);
-        await _context.SaveChangesAsync(cancellationToken);
-
-        vacationRequest.Employee = employee;
-
-        return CreatedAtAction(nameof(GetVacationRequest), new { id = vacationRequest.Id }, VacationRequestResponse.FromEntity(vacationRequest));
+        return CreatedAtAction(nameof(GetVacationRequest), new { id = result.Value!.Id }, result.Value);
     }
 
     [HttpPut("{id:guid}/status")]
@@ -111,34 +76,24 @@ public class VacationRequestsController(ApplicationDbContext context, ILogger<Va
             return ValidationProblem(ModelState);
         }
 
-        var vacationRequest = await _context.VacationRequests
-            .Include(v => v.Employee)
-            .FirstOrDefaultAsync(v => v.Id == id, cancellationToken);
-
-        if (vacationRequest is null)
+        var result = await _vacationRequestService.UpdateVacationStatusAsync(id, request, cancellationToken);
+        if (!result.IsSuccess)
         {
-            return NotFound();
+            return this.ToActionResult(result.Error!);
         }
 
-        vacationRequest.Status = request.Status;
-        vacationRequest.UpdatedAt = DateTimeOffset.UtcNow;
-
-        await _context.SaveChangesAsync(cancellationToken);
-
-        return VacationRequestResponse.FromEntity(vacationRequest);
+        return Ok(result.Value);
     }
 
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> DeleteVacationRequest(Guid id, CancellationToken cancellationToken)
     {
-        var vacationRequest = await _context.VacationRequests.FirstOrDefaultAsync(v => v.Id == id, cancellationToken);
-        if (vacationRequest is null)
+        var result = await _vacationRequestService.DeleteVacationRequestAsync(id, cancellationToken);
+        if (!result.IsSuccess)
         {
-            return NotFound();
+            return this.ToActionResult(result.Error!);
         }
 
-        _context.VacationRequests.Remove(vacationRequest);
-        await _context.SaveChangesAsync(cancellationToken);
         return NoContent();
     }
 }

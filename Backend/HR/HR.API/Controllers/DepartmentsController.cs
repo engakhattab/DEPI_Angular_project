@@ -1,120 +1,90 @@
+using HR.API.Extensions;
+using HR.Application.Departments;
 using HR.Application.DTOs.Departments;
-using HR.Domain.Entities;
-using HR.Infrastructure.Data;
+using HR.Shared.Pagination;
+using HR.Shared.Results;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace HR.API.Controllers;
 
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
-public class DepartmentsController(ApplicationDbContext context) : ControllerBase
+public class DepartmentsController(IDepartmentService departmentService) : ControllerBase
 {
-    private readonly ApplicationDbContext _context = context;
+    private readonly IDepartmentService _departmentService = departmentService;
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<DepartmentResponse>>> GetDepartments(CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedList<DepartmentResponse>>> GetDepartments(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        CancellationToken cancellationToken = default)
     {
-        var departments = await _context.Departments
-            .AsNoTracking()
-            .OrderBy(d => d.Name)
-            .ToListAsync(cancellationToken);
-
-        return departments.Select(MapToResponse).ToList();
+        var result = await _departmentService.GetDepartmentsAsync(page, pageSize, cancellationToken);
+        return Ok(result);
     }
 
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<DepartmentResponse>> GetDepartment(Guid id, CancellationToken cancellationToken)
     {
-        var department = await _context.Departments
-            .AsNoTracking()
-            .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
-
+        var department = await _departmentService.GetDepartmentByIdAsync(id, cancellationToken);
         if (department is null)
         {
-            return NotFound();
+            return this.ToActionResult(ServiceError.NotFound($"Department '{id}' was not found.", "NOT_FOUND"));
         }
 
-        return MapToResponse(department);
+        return Ok(department);
     }
 
     [HttpPost]
-    public async Task<ActionResult<DepartmentResponse>> CreateDepartment([FromBody] DepartmentCreateRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<DepartmentResponse>> CreateDepartment(
+        [FromBody] DepartmentCreateRequest request,
+        CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid)
         {
             return ValidationProblem(ModelState);
         }
 
-        if (await _context.Departments.AnyAsync(d => d.Name == request.Name, cancellationToken))
+        var result = await _departmentService.CreateDepartmentAsync(request, cancellationToken);
+        if (!result.IsSuccess)
         {
-            return Conflict($"Department '{request.Name}' already exists.");
+            return this.ToActionResult(result.Error!);
         }
 
-        var department = new Department { Name = request.Name };
-
-        _context.Departments.Add(department);
-        await _context.SaveChangesAsync(cancellationToken);
-
-        return CreatedAtAction(nameof(GetDepartment), new { id = department.Id }, MapToResponse(department));
+        return CreatedAtAction(nameof(GetDepartment), new { id = result.Value!.Id }, result.Value);
     }
 
     [HttpPut("{id:guid}")]
-    public async Task<ActionResult<DepartmentResponse>> UpdateDepartment(Guid id, [FromBody] DepartmentUpdateRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<DepartmentResponse>> UpdateDepartment(
+        Guid id,
+        [FromBody] DepartmentUpdateRequest request,
+        CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid)
         {
             return ValidationProblem(ModelState);
         }
 
-        var department = await _context.Departments.FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
-        if (department is null)
+        var result = await _departmentService.UpdateDepartmentAsync(id, request, cancellationToken);
+        if (!result.IsSuccess)
         {
-            return NotFound();
+            return this.ToActionResult(result.Error!);
         }
 
-        if (await _context.Departments.AnyAsync(d => d.Id != id && d.Name == request.Name, cancellationToken))
-        {
-            return Conflict($"Department '{request.Name}' already exists.");
-        }
-
-        department.Name = request.Name;
-        await _context.SaveChangesAsync(cancellationToken);
-
-        return MapToResponse(department);
+        return Ok(result.Value);
     }
 
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> DeleteDepartment(Guid id, CancellationToken cancellationToken)
     {
-        var department = await _context.Departments
-            .Include(d => d.Employees)
-            .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
-
-        if (department is null)
+        var result = await _departmentService.DeleteDepartmentAsync(id, cancellationToken);
+        if (!result.IsSuccess)
         {
-            return NotFound();
+            return this.ToActionResult(result.Error!);
         }
-
-        if (department.Employees.Any())
-        {
-            return Conflict("Cannot delete a department that still has employees assigned.");
-        }
-
-        _context.Departments.Remove(department);
-        await _context.SaveChangesAsync(cancellationToken);
 
         return NoContent();
-    }
-
-    private static DepartmentResponse MapToResponse(Department department)
-    {
-        return new DepartmentResponse
-        {
-            Id = department.Id,
-            Name = department.Name
-        };
     }
 }
