@@ -1,30 +1,26 @@
+using System.Security.Claims;
 using HR.Application.DTOs.Auth;
 using HR.Application.DTOs.Employees;
-using HR.Domain.Entities;
-using HR.Infrastructure.Data;
-using HR.Infrastructure.Identity;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Http;
+using HR.Application.Auth;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace HR.API.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
-public class AuthController(
-    ApplicationDbContext context,
-    UserManager<ApplicationUser> userManager,
-    ILogger<AuthController> logger) : ControllerBase
+public class AuthController(IAuthService authService) : ControllerBase
 {
-    private readonly ApplicationDbContext _context = context;
-    private readonly UserManager<ApplicationUser> _userManager = userManager;
-    private readonly ILogger<AuthController> _logger = logger;
+    private readonly IAuthService _authService = authService;
 
     [HttpPost("login")]
+    [AllowAnonymous]
     public async Task<ActionResult<LoginResponse>> Login(
         [FromBody] LoginRequest request,
-        CancellationToken cancellationToken)
+        CancellationToken ct)
     {
         if (!ModelState.IsValid)
         {
@@ -34,74 +30,86 @@ public class AuthController(
         var identifier = request.Identifier.Trim();
         if (string.IsNullOrEmpty(identifier))
         {
-            return Unauthorized("Invalid credentials.");
+            return Unauthorized(new { code = "VALIDATION", message = "Invalid credentials." });
         }
 
-        ApplicationUser? user = null;
-        Employee? employee = null;
-
-        try
+        var result = await _authService.ValidateCredentialsAsync(identifier, request.Password, ct);
+        if (!result.IsSuccess)
         {
-            if (identifier.Contains('@', StringComparison.Ordinal))
+            return Unauthorized(new
             {
-                user = await _userManager.FindByEmailAsync(identifier);
-                if (user is not null)
-                {
-                    employee = await _context.Employees
-                        .Include(e => e.Department)
-                        .Include(e => e.Manager)
-                        .AsNoTracking()
-                        .FirstOrDefaultAsync(e => e.ApplicationUserId == user.Id, cancellationToken);
-                }
-            }
-
-            if (user is null)
-            {
-                employee = await _context.Employees
-                    .Include(e => e.Department)
-                    .Include(e => e.Manager)
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(e => e.EmployeeNumber == identifier, cancellationToken);
-
-                if (employee is not null)
-                {
-                    user = await _userManager.FindByIdAsync(employee.ApplicationUserId);
-                }
-            }
+                code = result.Error!.Code,
+                message = result.Error.Message
+            });
         }
-        catch (Exception ex)
+
+        var employee = result.Value!.Employee;
+
+        var claims = new List<Claim>
         {
-            _logger.LogError(ex, "Failed to look up user with identifier {Identifier}", identifier);
-            return StatusCode(StatusCodes.Status500InternalServerError, "Unable to process login right now.");
-        }
+            new(ClaimTypes.NameIdentifier, result.Value.UserId),
+            new(ClaimTypes.Email, result.Value.UserEmail ?? string.Empty),
+            new("employee_id", employee.Id.ToString()),
+            new("employee_number", employee.EmployeeNumber),
+            new("full_name", employee.FullName)
+        };
 
-        if (user is null || employee is null)
-        {
-            return Unauthorized("Invalid credentials.");
-        }
+        var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+        var principal = new ClaimsPrincipal(identity);
 
-        var passwordValid = await _userManager.CheckPasswordAsync(user, request.Password);
-        if (!passwordValid)
-        {
-            return Unauthorized("Invalid credentials.");
-        }
+        await HttpContext.SignInAsync(
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            principal,
+            new AuthenticationProperties { IsPersistent = false });
 
         var response = new LoginResponse
         {
-            Employee = MapToResponse(employee, user)
+            Employee = MapToResponse(
+                employee,
+                result.Value.UserId,
+                result.Value.UserName,
+                result.Value.UserEmail)
         };
 
         return Ok(response);
     }
 
-    private static EmployeeResponse MapToResponse(Employee employee, ApplicationUser user)
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout()
+    {
+        await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        return NoContent();
+    }
+
+    [HttpGet("me")]
+    public ActionResult<CurrentUserResponse> Me()
+    {
+        var employeeIdClaim = User.FindFirstValue("employee_id");
+        if (!Guid.TryParse(employeeIdClaim, out var employeeId))
+        {
+            return Unauthorized(new { code = "UNAUTHORIZED", message = "Invalid session." });
+        }
+
+        return Ok(new CurrentUserResponse
+        {
+            EmployeeId = employeeId,
+            FullName = User.FindFirstValue("full_name") ?? string.Empty,
+            Email = User.FindFirstValue(ClaimTypes.Email) ?? string.Empty
+        });
+    }
+
+    private static EmployeeResponse MapToResponse(
+        HR.Domain.Entities.Employee employee,
+        string userId,
+        string? userName,
+        string? userEmail)
     {
         return new EmployeeResponse
         {
             Id = employee.Id,
             EmployeeNumber = employee.EmployeeNumber,
             FullName = employee.FullName,
-            Email = employee.Email ?? string.Empty,
+            Email = employee.Email ?? userEmail ?? string.Empty,
             DepartmentId = employee.DepartmentId,
             DepartmentName = employee.Department?.Name ?? string.Empty,
             ManagerId = employee.ManagerId,
@@ -112,8 +120,8 @@ public class AuthController(
             PhoneNumber = employee.PhoneNumber,
             Notes = employee.Notes,
             Status = employee.Status,
-            IdentityUserId = employee.ApplicationUserId,
-            UserName = user.UserName ?? string.Empty
+            IdentityUserId = userId,
+            UserName = userName ?? string.Empty
         };
     }
 }

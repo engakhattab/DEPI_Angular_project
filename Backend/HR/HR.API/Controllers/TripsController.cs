@@ -1,11 +1,13 @@
 using HR.Application.DTOs.Transportation;
 using HR.Domain.Entities;
 using HR.Infrastructure.Data;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace HR.API.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class TripsController(ApplicationDbContext context, ILogger<TripsController> logger) : ControllerBase

@@ -2,10 +2,13 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using HR.Infrastructure.Data;
 using HR.Infrastructure.Identity;
+using HR.Infrastructure;
 using HR.API.Middleware;
 using HR.Shared.Serialization;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Mvc.Authorization;
 
 namespace HR.API;
 
@@ -33,7 +36,44 @@ public class Program
             .AddRoles<IdentityRole>()
             .AddEntityFrameworkStores<ApplicationDbContext>();
 
-        builder.Services.AddControllers()
+        builder.Services
+            .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+            .AddCookie(options =>
+            {
+                options.Cookie.HttpOnly = true;
+                options.Cookie.SameSite = SameSiteMode.Strict;
+                options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+                options.ExpireTimeSpan = TimeSpan.FromHours(8);
+                options.SlidingExpiration = true;
+                options.Events.OnRedirectToLogin = async context =>
+                {
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    context.Response.ContentType = "application/json";
+                    await context.Response.WriteAsJsonAsync(new
+                    {
+                        code = "UNAUTHORIZED",
+                        message = "Authentication is required."
+                    });
+                };
+                options.Events.OnRedirectToAccessDenied = async context =>
+                {
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    context.Response.ContentType = "application/json";
+                    await context.Response.WriteAsJsonAsync(new
+                    {
+                        code = "FORBIDDEN",
+                        message = "You are not allowed to access this resource."
+                    });
+                };
+            });
+
+        builder.Services.AddAuthorization();
+        builder.Services.AddInfrastructure();
+
+        builder.Services.AddControllers(options =>
+            {
+                options.Filters.Add(new AuthorizeFilter());
+            })
             .AddJsonOptions(options =>
             {
                 options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
@@ -51,7 +91,8 @@ public class Program
                         "http://localhost:4200",
                         "https://localhost:4200")
                     .AllowAnyHeader()
-                    .AllowAnyMethod());
+                    .AllowAnyMethod()
+                    .AllowCredentials());
         });
 
         builder.Services.AddEndpointsApiExplorer();
@@ -61,12 +102,12 @@ public class Program
 
         app.UseMiddleware<GlobalExceptionMiddleware>();
 
-            app.UseSwagger();
-            app.UseSwaggerUI();
- 
+        app.UseSwagger();
+        app.UseSwaggerUI();
 
         app.UseHttpsRedirection();
         app.UseCors("AllowFrontend");
+        app.UseAuthentication();
         app.UseAuthorization();
 
         app.MapControllers();

@@ -2,11 +2,13 @@ using HR.Application.DTOs.VacationRequests;
 using HR.Domain.Entities;
 using HR.Domain.Enums;
 using HR.Infrastructure.Data;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace HR.API.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class VacationRequestsController(ApplicationDbContext context, ILogger<VacationRequestsController> logger) : ControllerBase

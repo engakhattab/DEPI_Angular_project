@@ -1,11 +1,13 @@
 using HR.Application.DTOs.Departments;
 using HR.Domain.Entities;
 using HR.Infrastructure.Data;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace HR.API.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class DepartmentsController(ApplicationDbContext context) : ControllerBase

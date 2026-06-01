@@ -3,12 +3,14 @@ using HR.Domain.Entities;
 using HR.Domain.Enums;
 using HR.Infrastructure.Data;
 using HR.Infrastructure.Identity;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace HR.API.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class EmployeesController(
