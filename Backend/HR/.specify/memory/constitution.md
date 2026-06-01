@@ -1,8 +1,13 @@
 <!--
   Sync Impact Report
   ==================
-  Version change: 0.0.0 (template) → 1.0.0
-  Modified principles: N/A (initial creation)
+  Version change: 1.0.0 → 1.1.0
+  Modified principles:
+    - I. Layered Architecture (clarified EF-free HR.Shared boundary)
+    - III. Service Layer Separation (clarified contract and implementation placement)
+    - IV. Domain Integrity & Business Rules (added staged activation)
+    - V. Global Error Handling & API Consistency (allowed compatibility codes)
+    - VI. Data Access Abstraction (clarified Identity model call order and Phase 6 DI activation)
   Added sections:
     - Core Principles (7 principles)
     - Technology Stack & Constraints
@@ -13,6 +18,9 @@
     - .specify/templates/plan-template.md        ✅ reviewed (no update needed)
     - .specify/templates/spec-template.md         ✅ reviewed (no update needed)
     - .specify/templates/tasks-template.md        ✅ reviewed (no update needed)
+  Runtime guidance requiring updates:
+    - PLAN.md                                    ✅ updated
+    - specs/004-repository-entity-configurations ✅ updated
   Follow-up TODOs: None
 -->
 
@@ -25,7 +33,9 @@
 All production code MUST be organized into exactly five projects
 following a strict dependency direction:
 
-- `HR.API` → `HR.Application` → `HR.Infrastructure` → `HR.Domain`
+- `HR.API` composes `HR.Application` and `HR.Infrastructure`.
+- `HR.Infrastructure` implements contracts from `HR.Application`.
+- `HR.Application` and `HR.Infrastructure` reference `HR.Domain`.
 - `HR.Shared` is referenced by all layers.
 
 **Rules:**
@@ -40,6 +50,10 @@ following a strict dependency direction:
   data-access concerns exclusively.
 - Cross-cutting utilities (`Result<T>`, `PagedList<T>`,
   `ServiceError`, JSON converters) live in `HR.Shared`.
+- `HR.Shared` MUST remain free of EF Core dependencies. Shared
+  pagination utilities MAY expose result models, constants, and
+  normalization helpers only. EF Core query execution belongs in
+  `HR.Infrastructure`.
 
 **Rationale:** Enforcing dependency direction keeps the domain model
 portable, the business logic testable in isolation, and the data
@@ -69,13 +83,16 @@ natively with ASP.NET Core's authentication pipeline.
 
 ### III. Service Layer Separation
 
-Business logic MUST live exclusively in service classes inside
-`HR.Application`. Controllers MUST NOT contain conditional
+Business logic MUST live exclusively in service classes exposed
+through interfaces inside `HR.Application`. Implementations MAY live
+in `HR.Application` or `HR.Infrastructure` when they require
+data-access internals. Controllers MUST NOT contain conditional
 business logic.
 
 **Rules:**
 
-- Every service method that performs writes MUST return `Result<T>`.
+- Every service method that performs writes MUST return `Result<T>`,
+  or `Result` when the successful operation has no response payload.
 - Read methods return DTOs or `PagedList<T>` — never raw entities.
 - Every list endpoint MUST support pagination with `page` and
   `pageSize` parameters (default 25, max 100).
@@ -96,6 +113,11 @@ No invalid state transitions, duplicate records, or constraint
 violations may reach the database.
 
 **Rules:**
+
+The rules in this principle are staged project requirements. They
+become mandatory when their planned implementation phase is active or
+completed. Phase 4 MUST preserve current runtime behavior and MUST NOT
+implement the Phase 5 rules early.
 
 - State transitions (employee status, vacation request status)
   MUST follow explicitly defined state machines — no ad-hoc
@@ -126,8 +148,13 @@ exceptions MUST NEVER leak to API clients.
   `BusinessRuleException`) map to `404`, `409`, `422` respectively.
 - Unhandled exceptions map to `500` with a generic message;
   details are logged server-side only.
-- `ServiceError` codes MUST be one of: `NOT_FOUND`, `CONFLICT`,
+- New `ServiceError` usage SHOULD prefer: `NOT_FOUND`, `CONFLICT`,
   `VALIDATION`, `BUSINESS_RULE`, `SERVER_ERROR`.
+- Existing compatibility codes `UNAUTHORIZED`, `FORBIDDEN`,
+  `VALIDATION_ERROR`, `INTERNAL_ERROR`, and `BUSINESS_RULE_VIOLATION`
+  remain allowed until a separately approved compatibility phase.
+  Existing HTTP statuses and error codes MUST NOT be renamed as part
+  of an unrelated refactor.
 
 **Rationale:** Consistent error shapes simplify frontend error
 handling and prevent information leakage.
@@ -144,11 +171,15 @@ after the repository layer is introduced.
   in `HR.Infrastructure/Repositories/`.
 - Repositories are registered as `Scoped` in DI.
 - EF Core entity configurations MUST use
-  `IEntityTypeConfiguration<T>` per entity — `OnModelCreating`
-  MUST contain only `ApplyConfigurationsFromAssembly`.
-- Each project (`HR.Application`, `HR.Infrastructure`) MUST own
-  its own `DependencyInjection.cs` extension method for service
-  registration.
+  `IEntityTypeConfiguration<T>` per entity. Because the project uses
+  ASP.NET Core Identity, `OnModelCreating` MUST contain only the
+  required `base.OnModelCreating(builder)` call followed by
+  `ApplyConfigurationsFromAssembly`. The order MUST NOT be reversed.
+- Full project-owned DI registration cleanup activates in Phase 6.
+  When Phase 6 is active or completed, each project (`HR.Application`,
+  `HR.Infrastructure`) MUST own its own `DependencyInjection.cs`
+  extension method for service registration. Before then, a phase MAY
+  add only the narrow registrations required by its own boundaries.
 - `Program.cs` MUST NOT contain direct `AddScoped<>` calls for
   application or infrastructure services.
 
@@ -237,4 +268,4 @@ comply with the principles defined above.
 - The constitution supersedes informal conventions or ad-hoc
   decisions.
 
-**Version**: 1.0.0 | **Ratified**: 2026-05-18 | **Last Amended**: 2026-05-18
+**Version**: 1.1.0 | **Ratified**: 2026-05-18 | **Last Amended**: 2026-06-01

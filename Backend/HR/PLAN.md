@@ -634,6 +634,13 @@ public interface IEmployeeRepository
 
 Repositories are registered as `Scoped`. They are injected into services; services no longer reference `ApplicationDbContext` directly.
 
+Phase 4 implementation safety amendments:
+
+- Use an infrastructure-owned unit-of-work boundary for atomic employee operations that span HR records and Identity.
+- Move EF paging execution into one infrastructure-owned `PagedQueryExecutor`; keep `HR.Shared` EF-free after caller migration.
+- Replace the raw employee entity in the internal authentication result with an application DTO while preserving public login behavior.
+- Add only the narrow Infrastructure registrations required by Phase 4. Full DI ownership cleanup remains Phase 6.
+
 ### Entity Configuration Pattern
 
 Replace the 120-line `OnModelCreating` with individual configuration classes:
@@ -667,7 +674,7 @@ public class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
 }
 ```
 
-`OnModelCreating` becomes a single line:
+`OnModelCreating` becomes a minimal Identity-compatible body:
 
 ```csharp
 protected override void OnModelCreating(ModelBuilder builder)
@@ -680,7 +687,7 @@ protected override void OnModelCreating(ModelBuilder builder)
 ### Done Criteria
 
 - Services reference only repository interfaces, not `ApplicationDbContext`.
-- `OnModelCreating` is one line.
+- `OnModelCreating` contains the required Identity base call first, followed by assembly scanning, with no inline custom entity mappings.
 - Each entity has its own configuration class in `HR.Infrastructure/Data/Configurations/`.
 
 ---
