@@ -76,15 +76,14 @@ Do not duplicate paging execution logic across repositories.
 
 ### 4. Refactor Services Incrementally
 
-Refactor and verify services in this order:
+Refactor and verify services incrementally:
 
 1. `DepartmentService`
 2. `VacationRequestService`
 3. `TripService`
-4. `AuthService`
-5. `EmployeeService`
+4. `AuthService` and `EmployeeService` may proceed after `IEmployeeRepository` and `EmployeeRepository` are complete.
 
-After each service refactor, run a build and its focused regression checkpoint. At completion, no `*Service.cs` file references `ApplicationDbContext`.
+Run a separate build and focused regression checkpoint after each service refactor. `AuthService` and `EmployeeService` do not depend on one another's refactor being complete. At completion, no `*Service.cs` file references `ApplicationDbContext`.
 
 `AuthService` maps its repository entity to the existing application-layer `EmployeeResponse`. `AuthenticatedEmployee.Employee` changes from a raw entity to `EmployeeResponse`, and `AuthController` stops mapping a raw entity. This is an internal service-contract correction only: login JSON, cookies, claims, HTTP statuses, and error codes remain unchanged.
 
@@ -195,6 +194,7 @@ No frontend files or UI contracts change in Phase 4.
 - Preserve `GlobalExceptionMiddleware` handling for unexpected exceptions.
 - Forward `CancellationToken` through repository queries, unit-of-work saves, and transaction operations.
 - Keep employee creation and deletion rollback-safe across HR records and Identity operations.
+- Preserve current concurrent-write behavior; concurrency-policy changes are outside Phase 4.
 - Do not add new business validation rules.
 
 ## Testing and Check Strategy
@@ -247,6 +247,7 @@ Use [quickstart.md](./quickstart.md) to exercise authentication and each existin
 ## Out of Scope
 
 - New entities, fields, relationships, migrations, or schema changes.
+- New concurrent-write policy, optimistic-concurrency rules, or conflict handling.
 - Phase 5 rules: soft delete, vacation overlap checks, balances, status state machines, reviewer audits, circular manager detection, duplicate active-email rules, trip ownership, and trip-date rules.
 - Phase 6 DI cleanup beyond required repository registrations.
 - New routes, DTO changes, frontend work, roles, RBAC, attendance, salary, documents, dashboards, or audit logs.
@@ -274,8 +275,8 @@ specs/004-repository-entity-configurations/
 ### Source Code (repository root)
 
 ```text
-HR.API/                     # unchanged HTTP boundary
-HR.Application/             # unchanged DTO and service contracts
+HR.API/                     # unchanged public HTTP contract; narrow AuthController mapping cleanup
+HR.Application/             # unchanged public DTOs; narrow internal IAuthService result-type correction
 HR.Infrastructure/
 |-- Data/
 |   |-- ApplicationDbContext.cs

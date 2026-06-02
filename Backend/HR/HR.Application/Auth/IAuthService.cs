@@ -1,4 +1,4 @@
-using HR.Domain.Entities;
+using HR.Application.DTOs.Employees;
 using HR.Shared.Results;
 
 namespace HR.Application.Auth;
@@ -12,7 +12,7 @@ public interface IAuthService
 }
 
 public sealed record AuthenticatedEmployee(
-    Employee Employee,
+    EmployeeResponse Employee,
     string UserId,
     string? UserName,
     string? UserEmail);

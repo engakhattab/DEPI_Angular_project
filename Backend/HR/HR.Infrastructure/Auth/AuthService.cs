@@ -1,18 +1,18 @@
 using HR.Application.Auth;
+using HR.Application.DTOs.Employees;
 using HR.Domain.Entities;
-using HR.Infrastructure.Data;
 using HR.Infrastructure.Identity;
+using HR.Infrastructure.Repositories;
 using HR.Shared.Results;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 
 namespace HR.Infrastructure.Auth;
 
 public class AuthService(
-    ApplicationDbContext context,
+    IEmployeeRepository employeeRepository,
     UserManager<ApplicationUser> userManager) : IAuthService
 {
-    private readonly ApplicationDbContext _context = context;
+    private readonly IEmployeeRepository _employeeRepository = employeeRepository;
     private readonly UserManager<ApplicationUser> _userManager = userManager;
 
     public async Task<Result<AuthenticatedEmployee>> ValidateCredentialsAsync(
@@ -28,21 +28,13 @@ public class AuthService(
             user = await _userManager.FindByEmailAsync(identifier);
             if (user is not null)
             {
-                employee = await _context.Employees
-                    .Include(e => e.Department)
-                    .Include(e => e.Manager)
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(e => e.ApplicationUserId == user.Id, ct);
+                employee = await _employeeRepository.GetByApplicationUserIdWithDetailsAsync(user.Id, ct);
             }
         }
 
         if (user is null)
         {
-            employee = await _context.Employees
-                .Include(e => e.Department)
-                .Include(e => e.Manager)
-                .AsNoTracking()
-                .FirstOrDefaultAsync(e => e.EmployeeNumber == identifier, ct);
+            employee = await _employeeRepository.GetByEmployeeNumberWithDetailsAsync(identifier, ct);
 
             if (employee is not null)
             {
@@ -65,9 +57,32 @@ public class AuthService(
 
         return Result<AuthenticatedEmployee>.Success(
             new AuthenticatedEmployee(
-                employee,
+                MapToResponse(employee, user),
                 user.Id,
                 user.UserName,
                 user.Email));
+    }
+
+    private static EmployeeResponse MapToResponse(Employee employee, ApplicationUser user)
+    {
+        return new EmployeeResponse
+        {
+            Id = employee.Id,
+            EmployeeNumber = employee.EmployeeNumber,
+            FullName = employee.FullName,
+            Email = employee.Email ?? user.Email ?? string.Empty,
+            DepartmentId = employee.DepartmentId,
+            DepartmentName = employee.Department?.Name ?? string.Empty,
+            ManagerId = employee.ManagerId,
+            ManagerName = employee.Manager?.FullName,
+            BirthDate = employee.BirthDate,
+            JoinDate = employee.JoinDate,
+            JobTitle = employee.JobTitle,
+            PhoneNumber = employee.PhoneNumber,
+            Notes = employee.Notes,
+            Status = employee.Status,
+            IdentityUserId = user.Id,
+            UserName = user.UserName ?? string.Empty
+        };
     }
 }

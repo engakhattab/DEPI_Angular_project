@@ -77,7 +77,7 @@ dotnet run --project .\HR.API\HR.API.csproj -c Release --no-launch-profile --url
 4. Call `GET /api/auth/me`.
 5. Call `POST /api/auth/logout`.
 6. Compare login response JSON before and after the refactor.
-7. Confirm the session cookie retains its existing flags and behavior.
+7. Inspect the isolated API `Set-Cookie` response and confirm the session cookie retains its existing flags and behavior. A host-level integration test may replace this manual step only if one is explicitly added.
 8. Confirm claims retain `NameIdentifier`, email, `employee_id`, `employee_number`, and `full_name`.
 
 ## HR Workflow Regression

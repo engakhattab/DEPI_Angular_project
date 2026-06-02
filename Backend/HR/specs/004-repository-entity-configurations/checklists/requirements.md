@@ -38,15 +38,15 @@
 - [x] C5 EF-free `HR.Shared` and Infrastructure-owned paging execution are required
 - [x] C6 DTO-based authentication results are required without public behavior changes
 
-## Runtime Verification
+## Deferred Runtime Verification
 
-- [ ] Confirm `HR.Shared` is EF-free after caller migration
-- [ ] Confirm login response JSON, claims, cookies, HTTP statuses, and error codes remain unchanged
-- [ ] Confirm no model drift or migration change is introduced
-- [ ] Confirm no Phase 5 rules or Phase 6 DI restructuring enters implementation
+- [x] `[N/A at pre-implementation gate; deferred to T029 and T048]` Confirm `HR.Shared` is EF-free after caller migration
+- [x] `[N/A at pre-implementation gate; deferred to T031, T036, and T047]` Confirm login response JSON, claims, cookies, HTTP statuses, and error codes remain unchanged
+- [x] `[N/A at pre-implementation gate; deferred to T037, T043, and T048]` Confirm no model drift or migration change is introduced
+- [x] `[N/A at pre-implementation gate; deferred to T049]` Confirm no Phase 5 rules or Phase 6 DI restructuring enters implementation
 
 ## Notes
 
 - All checklist items passed during specification validation.
 - Pending Phase 3 authenticated manual checkpoints remain an implementation-entry dependency, not a Phase 4 specification gap.
-- Runtime verification items intentionally remain open until implementation.
+- Deferred runtime items are dispositioned as not applicable to the pre-implementation gate. Their linked implementation tasks must still pass before Phase 4 completion.

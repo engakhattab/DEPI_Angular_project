@@ -62,14 +62,7 @@ public class AuthController(IAuthService authService) : ControllerBase
             principal,
             new AuthenticationProperties { IsPersistent = false });
 
-        var response = new LoginResponse
-        {
-            Employee = MapToResponse(
-                employee,
-                result.Value.UserId,
-                result.Value.UserName,
-                result.Value.UserEmail)
-        };
+        var response = new LoginResponse { Employee = employee };
 
         return Ok(response);
     }
@@ -96,32 +89,5 @@ public class AuthController(IAuthService authService) : ControllerBase
             FullName = User.FindFirstValue("full_name") ?? string.Empty,
             Email = User.FindFirstValue(ClaimTypes.Email) ?? string.Empty
         });
-    }
-
-    private static EmployeeResponse MapToResponse(
-        HR.Domain.Entities.Employee employee,
-        string userId,
-        string? userName,
-        string? userEmail)
-    {
-        return new EmployeeResponse
-        {
-            Id = employee.Id,
-            EmployeeNumber = employee.EmployeeNumber,
-            FullName = employee.FullName,
-            Email = employee.Email ?? userEmail ?? string.Empty,
-            DepartmentId = employee.DepartmentId,
-            DepartmentName = employee.Department?.Name ?? string.Empty,
-            ManagerId = employee.ManagerId,
-            ManagerName = employee.Manager?.FullName,
-            BirthDate = employee.BirthDate,
-            JoinDate = employee.JoinDate,
-            JobTitle = employee.JobTitle,
-            PhoneNumber = employee.PhoneNumber,
-            Notes = employee.Notes,
-            Status = employee.Status,
-            IdentityUserId = userId,
-            UserName = userName ?? string.Empty
-        };
     }
 }

@@ -4,7 +4,7 @@
 
 **Created**: 2026-06-01
 
-**Status**: Draft
+**Status**: Complete
 
 **Input**: User description: "Read the existing project context and create a specification for phase 4."
 
@@ -78,7 +78,11 @@ As a maintainer, I want each business area to access stored HR data through a de
 - Employee creation and deletion continue to complete atomically with associated login-identity changes.
 - Employee deletion continues to clear direct-report manager links and remove related vacation requests before removing the login identity.
 - Authentication continues to support both email-address and employee-number lookup paths.
+- If an employee profile has no matching login identity, authentication continues to reject the login as invalid credentials while employee administration reads preserve the existing response fallback behavior.
 - A data-access failure during a multi-step operation does not leave partially completed stored data.
+- Cancellation continues to flow through asynchronous operations without introducing new cancellation semantics.
+- Concurrent-write policy is unchanged in Phase 4; new optimistic-concurrency rules or conflict handling are deferred.
+- Unexpected persistence failures continue to reach `GlobalExceptionMiddleware`, which logs exception details server-side and returns the existing generic HTTP `500` payload.
 - Separating stored-data declarations does not create, remove, rename, or alter database objects.
 - Existing relationship behavior remains unchanged when a record has related data.
 
@@ -88,19 +92,19 @@ As a maintainer, I want each business area to access stored HR data through a de
 
 - **FR-001**: The system MUST preserve all existing department, vacation request, trip, employee, and authentication operations during the refactor.
 - **FR-002**: Existing operation paths, supported inputs, successful response data, response JSON, cookies, claims, HTTP statuses, error codes, and session behavior MUST remain backward-compatible.
-- **FR-003**: Each existing HR business entity MUST have a dedicated data-access boundary covering the reads and writes required by current workflows.
-- **FR-004**: Business operations MUST use dedicated data-access boundaries for stored HR data and MUST NOT directly access the shared persistence session after Phase 4 is complete.
-- **FR-005**: Authentication MUST continue using the existing credential store while delegating stored employee-profile lookups through the employee data-access boundary.
+- **FR-003**: Each existing HR business entity MUST have a dedicated data-access boundary covering the reads and writes required by current workflows. Shared transaction coordination through an infrastructure-owned unit of work is permitted.
+- **FR-004**: Business-operation services, including authentication orchestration, MUST use dedicated data-access boundaries for stored HR data and MUST NOT directly reference `ApplicationDbContext` or execute EF Core queries after Phase 4 is complete. Infrastructure-owned repositories, Identity lookup, paging execution, and unit-of-work components remain permitted to use the shared persistence session.
+- **FR-005**: Authentication MUST continue using the existing `UserManager<ApplicationUser>` credential store while delegating stored employee-profile lookups through the employee data-access boundary. Employee-profile lookup is the only authentication concern moved behind a new data-access boundary in Phase 4.
 - **FR-006**: Department browsing MUST retain alphabetical ordering, unique-name conflict handling, and delete-with-assigned-employees refusal.
 - **FR-007**: Vacation request browsing MUST retain status and employee filters, newest-first ordering, existing creation validation, status updates, and deletion behavior.
 - **FR-008**: Trip browsing MUST retain newest-first ordering, generated identifier shapes, retrieval behavior, and deletion behavior.
-- **FR-009**: Employee operations MUST retain status filtering, employee-number ordering, department and manager checks, login-identity synchronization, temporary-password behavior, and deletion cleanup.
-- **FR-010**: Employee creation and deletion MUST remain atomic so that failed multi-step operations do not leave partially completed employee, related-record, or login-identity data.
-- **FR-011**: The system MUST preserve all current stored-data rules for departments, employees, vacation requests, trips, and login identities.
-- **FR-012**: Stored-data rules MUST be organized by business entity so each entity's constraints and relationships can be reviewed independently.
+- **FR-009**: Employee operations MUST retain status filtering, employee-number ordering, department and manager checks, login-identity synchronization, temporary-password behavior, and deletion cleanup, including clearing direct-report manager references and removing related vacation requests before employee and login-identity deletion completes.
+- **FR-010**: Employee creation and deletion MUST remain atomic so that failed multi-step operations do not leave partially completed employee rows, direct-report manager references, vacation requests, or login-identity data.
+- **FR-011**: The system MUST preserve all current stored-data rules for departments, employees, vacation requests, trips, and login identities. The Phase 4 baseline is the existing `ApplicationDbContext` model documented in [data-model.md](./data-model.md).
+- **FR-012**: Stored-data rules MUST be organized by business entity so each entity's constraints and relationships can be reviewed independently. The employee-to-login-identity relationship moves into the employee configuration; Identity's built-in mappings remain provided by the required base context configuration.
 - **FR-013**: Phase 4 MUST NOT require a database schema migration or modify any existing migration.
-- **FR-014**: Existing pagination behavior, cancellation behavior, authorization rules, global error handling, HTTP statuses, and error codes MUST remain unchanged.
-- **FR-015**: Phase 4 MUST NOT introduce new HR business rules, new entities, new routes, frontend changes, or unrelated dependency-registration cleanup.
+- **FR-014**: Existing pagination behavior, cancellation behavior, authorization rules, global error handling, HTTP statuses, and error codes MUST remain unchanged. Cancellation tokens MUST continue to be forwarded, and unexpected persistence failures MUST continue to be logged by `GlobalExceptionMiddleware` before its generic HTTP `500` response.
+- **FR-015**: Phase 4 MUST NOT introduce new HR business rules, new entities, new routes, frontend changes, unrelated dependency-registration cleanup, or new concurrent-write policy.
 - **FR-016**: Shared pagination utilities MUST remain independent from persistence technology after Phase 4; stored-data paging execution MUST be delegated to an infrastructure-owned boundary without changing pagination results.
 - **FR-017**: Authentication service results MUST expose an application-layer response model rather than a raw stored-data entity while preserving login response JSON, claims, cookies, HTTP statuses, and error codes.
 
@@ -111,7 +115,9 @@ As a maintainer, I want each business area to access stored HR data through a de
 - **Vacation Request**: A leave request associated with an employee, date range, reason, status, and timestamps.
 - **Trip**: A transportation record with trip details, generated identifiers, and creation history.
 - **Login Identity**: The existing credential record associated with an employee profile.
-- **Data-Access Boundary**: A focused contract through which business operations retrieve or persist records for a business entity.
+- **Data-Access Boundary**: A focused infrastructure contract through which business-operation services retrieve or persist records for a business entity. Repository boundaries may share infrastructure-owned transaction coordination.
+- **Shared Persistence Session**: The scoped `ApplicationDbContext` and direct EF Core query execution over it. Services may not access it after Phase 4; infrastructure persistence components may.
+- **Unit of Work**: The infrastructure-owned boundary that coordinates saves, execution strategies, and transactions shared by repository-backed operations.
 - **Entity Mapping Declaration**: The independently reviewable set of stored-data constraints and relationships for one business entity.
 
 ## Success Criteria *(mandatory)*
@@ -122,16 +128,16 @@ As a maintainer, I want each business area to access stored HR data through a de
 - **SC-002**: 100% of existing list filters, ordering rules, and pagination boundaries return the same results as before Phase 4.
 - **SC-003**: 100% of service operations that need stored HR data use a dedicated data-access boundary; zero services directly access the shared persistence session after Phase 4.
 - **SC-004**: 100% of existing stored-data constraints and relationships are preserved with no required schema migration.
-- **SC-005**: Failed multi-step employee creation and deletion checks leave zero partial employee, related-record, or login-identity changes.
+- **SC-005**: Failed multi-step employee creation and deletion checks leave zero partial employee-row, direct-report manager-reference, vacation-request, or login-identity changes.
 - **SC-006**: Each of the four HR business entities has one independently reviewable persistence boundary and one independently reviewable mapping declaration.
-- **SC-007**: Existing automated regression checks and the complete Phase 4 manual regression checklist pass before the phase is considered complete.
+- **SC-007**: Existing automated regression checks and the complete Phase 4 manual regression checklist in [quickstart.md](./quickstart.md) pass before the phase is considered complete.
 - **SC-008**: `HR.Shared` contains zero EF Core package, namespace, or query-execution references after all paging callers are migrated.
 - **SC-009**: Login response JSON, claims, cookies, HTTP statuses, and error codes remain identical before and after the internal authentication-result refactor.
 
 ## Assumptions
 
 - Phase 3 source implementation and its focused runtime-safety regression tests are complete before Phase 4 planning begins.
-- Pending Phase 3 authenticated manual checkpoints must pass before Phase 4 implementation begins.
+- Pending Phase 3 authenticated manual checkpoints in [quickstart.md](./quickstart.md) must pass before Phase 4 implementation begins.
 - The existing login-identity mechanism remains the credential store and is not replaced by this phase.
 - The employee data-access boundary may support authentication employee-profile lookups in addition to employee administration workflows.
 - Phase 4 reorganizes persistence responsibilities without changing stored data, so no migration is expected.
@@ -139,3 +145,5 @@ As a maintainer, I want each business area to access stored HR data through a de
 - Broader dependency-registration cleanup remains reserved for Phase 6 except for registrations strictly required to activate the new data-access boundaries.
 - Phase 5 business rules are staged project requirements and are not active Phase 4 requirements.
 - Existing error codes are compatibility contracts for Phase 4 and are not normalized or renamed.
+- Existing list-query performance expectations remain unchanged: filtering and ordering occur before bounded pagination, page size remains capped at 100, and employee Identity reads remain page-scoped rather than per-record.
+- Existing concurrent-write behavior remains unchanged; concurrency-policy improvements are deferred beyond Phase 4.

@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore;
-
 namespace HR.Shared.Pagination;
 
 public class PagedList<T>
@@ -25,19 +23,7 @@ public class PagedList<T>
         PageSize = normalized.PageSize;
     }
 
-    public static async Task<PagedList<T>> CreateAsync(
-        IQueryable<T> source, int page, int pageSize, CancellationToken ct = default)
-    {
-        var normalized = Normalize(page, pageSize);
-        var count = await source.CountAsync(ct);
-        var items = await source
-            .Skip((normalized.Page - 1) * normalized.PageSize)
-            .Take(normalized.PageSize)
-            .ToListAsync(ct);
-        return new PagedList<T>(items, count, normalized.Page, normalized.PageSize);
-    }
-
-    private static (int Page, int PageSize) Normalize(int page, int pageSize)
+    public static (int Page, int PageSize) Normalize(int page, int pageSize)
     {
         var normalizedPage = page <= 0 ? DefaultPage : page;
         var normalizedPageSize = pageSize <= 0 ? DefaultPageSize : pageSize;

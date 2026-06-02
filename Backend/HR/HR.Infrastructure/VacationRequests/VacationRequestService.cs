@@ -2,16 +2,20 @@ using HR.Application.DTOs.VacationRequests;
 using HR.Application.VacationRequests;
 using HR.Domain.Entities;
 using HR.Domain.Enums;
-using HR.Infrastructure.Data;
+using HR.Infrastructure.Repositories;
 using HR.Shared.Pagination;
 using HR.Shared.Results;
-using Microsoft.EntityFrameworkCore;
 
 namespace HR.Infrastructure.VacationRequests;
 
-public class VacationRequestService(ApplicationDbContext context) : IVacationRequestService
+public class VacationRequestService(
+    IVacationRequestRepository vacationRequestRepository,
+    IEmployeeRepository employeeRepository,
+    IUnitOfWork unitOfWork) : IVacationRequestService
 {
-    private readonly ApplicationDbContext _context = context;
+    private readonly IVacationRequestRepository _vacationRequestRepository = vacationRequestRepository;
+    private readonly IEmployeeRepository _employeeRepository = employeeRepository;
+    private readonly IUnitOfWork _unitOfWork = unitOfWork;
 
     public async Task<PagedList<VacationRequestResponse>> GetVacationRequestsAsync(
         VacationRequestStatus? status,
@@ -20,22 +24,7 @@ public class VacationRequestService(ApplicationDbContext context) : IVacationReq
         int pageSize,
         CancellationToken ct)
     {
-        IQueryable<VacationRequest> query = _context.VacationRequests
-            .AsNoTracking()
-            .Include(v => v.Employee)
-            .OrderByDescending(v => v.CreatedAt);
-
-        if (status.HasValue)
-        {
-            query = query.Where(v => v.Status == status.Value);
-        }
-
-        if (employeeId.HasValue)
-        {
-            query = query.Where(v => v.EmployeeId == employeeId.Value);
-        }
-
-        var pagedEntities = await PagedList<VacationRequest>.CreateAsync(query, page, pageSize, ct);
+        var pagedEntities = await _vacationRequestRepository.GetPageWithEmployeeAsync(status, employeeId, page, pageSize, ct);
         var items = pagedEntities.Items.Select(VacationRequestResponse.FromEntity).ToList();
 
         return new PagedList<VacationRequestResponse>(items, pagedEntities.TotalCount, pagedEntities.Page, pagedEntities.PageSize);
@@ -43,10 +32,7 @@ public class VacationRequestService(ApplicationDbContext context) : IVacationReq
 
     public async Task<VacationRequestResponse?> GetVacationRequestByIdAsync(Guid id, CancellationToken ct)
     {
-        var request = await _context.VacationRequests
-            .AsNoTracking()
-            .Include(v => v.Employee)
-            .FirstOrDefaultAsync(v => v.Id == id, ct);
+        var request = await _vacationRequestRepository.GetByIdWithEmployeeAsync(id, ct);
 
         return request is null ? null : VacationRequestResponse.FromEntity(request);
     }
@@ -59,9 +45,7 @@ public class VacationRequestService(ApplicationDbContext context) : IVacationReq
                 ServiceError.Validation("End date must be on or after the start date.", "VALIDATION"));
         }
 
-        var employee = await _context.Employees
-            .AsNoTracking()
-            .FirstOrDefaultAsync(e => e.Id == request.EmployeeId, ct);
+        var employee = await _employeeRepository.GetByIdAsync(request.EmployeeId, ct);
 
         if (employee is null)
         {
@@ -79,8 +63,8 @@ public class VacationRequestService(ApplicationDbContext context) : IVacationReq
             CreatedAt = DateTimeOffset.UtcNow
         };
 
-        _context.VacationRequests.Add(vacationRequest);
-        await _context.SaveChangesAsync(ct);
+        await _vacationRequestRepository.AddAsync(vacationRequest, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
 
         vacationRequest.Employee = employee;
         return Result<VacationRequestResponse>.Success(VacationRequestResponse.FromEntity(vacationRequest));
@@ -91,9 +75,7 @@ public class VacationRequestService(ApplicationDbContext context) : IVacationReq
         VacationRequestStatusUpdateRequest request,
         CancellationToken ct)
     {
-        var vacationRequest = await _context.VacationRequests
-            .Include(v => v.Employee)
-            .FirstOrDefaultAsync(v => v.Id == id, ct);
+        var vacationRequest = await _vacationRequestRepository.GetByIdAsync(id, ct);
 
         if (vacationRequest is null)
         {
@@ -103,21 +85,22 @@ public class VacationRequestService(ApplicationDbContext context) : IVacationReq
 
         vacationRequest.Status = request.Status;
         vacationRequest.UpdatedAt = DateTimeOffset.UtcNow;
+        vacationRequest.Employee = await _employeeRepository.GetByIdAsync(vacationRequest.EmployeeId, ct);
 
-        await _context.SaveChangesAsync(ct);
+        await _unitOfWork.SaveChangesAsync(ct);
         return Result<VacationRequestResponse>.Success(VacationRequestResponse.FromEntity(vacationRequest));
     }
 
     public async Task<Result> DeleteVacationRequestAsync(Guid id, CancellationToken ct)
     {
-        var vacationRequest = await _context.VacationRequests.FirstOrDefaultAsync(v => v.Id == id, ct);
+        var vacationRequest = await _vacationRequestRepository.GetByIdAsync(id, ct);
         if (vacationRequest is null)
         {
             return Result.Failure(ServiceError.NotFound($"Vacation request '{id}' was not found.", "NOT_FOUND"));
         }
 
-        _context.VacationRequests.Remove(vacationRequest);
-        await _context.SaveChangesAsync(ct);
+        _vacationRequestRepository.Remove(vacationRequest);
+        await _unitOfWork.SaveChangesAsync(ct);
 
         return Result.Success();
     }

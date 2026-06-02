@@ -60,15 +60,15 @@
 - Add a separate custom Identity-user configuration: rejected because no custom Identity-user mapping exists beyond the employee relationship.
 - Modify entities or migrations during extraction: rejected because Phase 4 is schema-neutral.
 
-## Decision 6: Preserve Current Service and API Contracts
+## Decision 6: Preserve Public API Contracts
 
-**Decision**: Keep controllers, application service interfaces, routes, DTOs, pagination envelopes, errors, authentication, and authorization unchanged.
+**Decision**: Keep public HTTP contracts unchanged: routes, request and response JSON, pagination envelopes, cookies, claims, HTTP statuses, error codes, authentication behavior, and authorization behavior remain identical. Permit the narrow internal `IAuthService` result-type correction and `AuthController` mapping cleanup required to remove raw `Employee` entity leakage.
 
-**Rationale**: Phase 4 is an internal persistence refactor. Contract changes would expand risk and violate the phase boundary.
+**Rationale**: Phase 4 is an internal persistence refactor. Public contract changes would expand risk and violate the phase boundary. The internal auth correction changes where mapping occurs without changing wire behavior.
 
 **Alternatives considered**:
 
-- Redesign application service interfaces: rejected because no user-facing or architectural need requires it.
+- Redesign application service interfaces broadly: rejected because no user-facing or architectural need requires it. The narrow internal auth result-type correction is required to stop returning a raw entity.
 - Add new business validations: rejected because they belong to Phase 5.
 
 ## Decision 7: Limit Dependency Registration Changes

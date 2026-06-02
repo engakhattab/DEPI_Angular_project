@@ -1,121 +1,150 @@
 # Codex Project Handoff
 
 ## 1. Project Overview
-This project is an **HR Management System** built with ASP.NET Core 8. The original system was functional but architecturally immature, with all business logic tightly coupled inside controllers. The main goal of the current work is to execute a phased architectural refactor to transform the project into a robust, layered architecture. This ensures the system is maintainable, testable, and extensible without breaking existing backward compatibility with the frontend API contracts.
+This project is an HR Management System backend built with ASP.NET Core 8. The work is organized as a seven-phase architectural refactor. Each phase must preserve backward compatibility unless a later approved specification explicitly permits a behavior change.
 
 ## 2. Tech Stack
-* **Framework:** ASP.NET Core 8 (Web API)
+* **Framework:** ASP.NET Core 8 Web API
 * **Language:** C# 12
 * **Data Access:** Entity Framework Core 8
 * **Database:** SQL Server
-* **Authentication:** ASP.NET Core Identity (Cookie-based session auth, no JWT)
-* **Architecture:** Layered (Domain, Application, Infrastructure, API, Shared)
+* **Authentication:** ASP.NET Core Identity with cookie-based session authentication; no JWT
+* **Architecture:** Layered projects: `HR.API`, `HR.Application`, `HR.Infrastructure`, `HR.Domain`, `HR.Shared`
+* **Testing:** xUnit with SQLite in-memory storage for focused automated persistence tests
 
 ## 3. Project Structure
-The repository has been restructured into a 5-project layered architecture:
-* `HR.API/`: HTTP endpoints, controllers, middleware, and `Program.cs`. References Application and Shared.
-* `HR.Application/`: Business logic, services, interfaces, DTOs. References Domain and Shared.
-* `HR.Infrastructure/`: Data access, EF Core, ApplicationDbContext, Identity, migrations. References Domain and Shared (and Application for service implementations).
-* `HR.Domain/`: Core entities, enums, domain exceptions. Has **zero** external dependencies.
-* `HR.Shared/`: Pure utilities (`Result<T>`, `PagedList<T>`, `ServiceError`).
+* `HR.API/`: HTTP endpoints, controllers, middleware, and `Program.cs`.
+* `HR.Application/`: Service interfaces and DTOs.
+* `HR.Infrastructure/`: EF Core, Identity, repositories, service implementations, entity configurations, and migrations.
+* `HR.Domain/`: Entities, enums, and domain exceptions.
+* `HR.Shared/`: EF-free utilities including `Result<T>`, `PagedList<T>`, and `ServiceError`.
+* `HR.Tests/`: Focused regression coverage for runtime safety, repositories, paging, authentication compatibility, error payloads, and model parity.
 
 ## 4. Spec Kit Context
-This project uses **Spec Kit** for AI-driven development.
-* All feature plans, specs, and tasks are located in the `specs/` directory (e.g., `specs/003-session-auth/`).
-* Important files in a spec directory:
-  * `spec.md`: Functional requirements and user stories.
-  * `plan.md`: Technical implementation plan and architectural decisions.
-  * `tasks.md`: Actionable checklist of implementation steps.
-  * `research.md` / `data-model.md`: Additional context and decisions.
-* `AGENTS.md` in the project root points to the current active plan.
+This project uses Spec Kit for phased development.
+
+* The master roadmap is `PLAN.md`.
+* The project governance rules are `.specify/memory/constitution.md`.
+* Phase-specific artifacts live under `specs/`.
+* The completed Phase 4 artifacts live under `specs/004-repository-entity-configurations/`.
+* `AGENTS.md` points to the current relevant implementation plan.
 
 ## 5. Current Progress
-This project was previously worked on using Antigravity and OpenCode with Spec Kit.
-**We are currently at Phase 3 out of 7.**
+**Phases 0 through 4 out of 7 are complete. Phase 5 has not started.**
 
-* **Completed:** Phases 0, 1, and 2. The project has been restructured, global exception handling and pagination utilities are in place, and session-based authentication has been implemented.
-* **Partially Completed / Not Started:** Phase 3 (Service Layer Extraction) is about to begin.
-* **Important Decisions Made:**
-  * No JWT tokens; strict use of secure, HttpOnly session cookies.
-  * Unauthenticated requests return JSON 401/403 (no HTML redirects).
-  * Strict layered architecture where Controllers are only thin HTTP adapters.
+Completed phases:
+* Phase 0: Foundation & Project Restructure
+* Phase 1: Global Exception Handling & Pagination Infrastructure
+* Phase 2: Session-Based Authentication & Authorization
+* Phase 3: Service Layer Extraction
+* Phase 4: Repository Pattern & Entity Configurations
+
+Next phase:
+* Phase 5: HR Business Logic Improvements
+* Phase 5 must begin only after explicit user approval.
+
+Compatibility decisions:
+* Use secure, HttpOnly cookie sessions; do not introduce JWT.
+* Preserve JSON `401` and `403` responses instead of HTML redirects.
+* Preserve existing routes, response JSON, cookies, claims, status codes, and error codes unless an approved future phase explicitly changes them.
+* Preserve existing database schema and migrations unless an approved future phase explicitly requires a migration.
+* Keep Phase 5 domain rules and Phase 6 DI restructuring out of completed Phase 4 work.
 
 ## 6. Completed Phases
-
 ### Phase 0: Foundation & Project Restructure
-* **Goal:** Create the new layered solution structure without breaking existing functionality.
-* **Completed work:** Created the 5 projects (`API`, `Application`, `Infrastructure`, `Domain`, `Shared`). Moved entities, enums, DTOs, and DbContext to their correct layers.
-* **Important files:** `NotFoundException`, `ConflictException`, `Result<T>`, `ServiceError`.
+* Created the layered solution structure.
+* Moved API, application, infrastructure, domain, and shared concerns into their intended projects.
 
 ### Phase 1: Global Exception Handling & Pagination Infrastructure
-* **Goal:** Centralize error handling and add a pagination helper for future service layers.
-* **Completed work:** Implemented `GlobalExceptionMiddleware` to catch domain exceptions and return standardized JSON error responses. Implemented `PagedList<T>` in `HR.Shared`.
-* **Important files:** `GlobalExceptionMiddleware.cs`, `PagedList.cs`.
+* Added `GlobalExceptionMiddleware`.
+* Added structured error responses.
+* Added shared pagination support.
 
 ### Phase 2: Session-Based Authentication & Authorization
-* **Goal:** Secure endpoints with cookie-based session auth using `AspNetIdentity`.
-* **Completed work:** Configured cookie auth in `Program.cs`. Created `IAuthService` and `AuthService`. Refactored `AuthController` to use `HttpContext.SignInAsync`. Added `[Authorize]` to all other controllers. Added a `GET /api/auth/me` endpoint.
-* **Important files:** `AuthController.cs`, `AuthService.cs`, `IAuthService.cs`, `Program.cs`.
+* Configured ASP.NET Core Identity cookie authentication in `Program.cs`.
+* Added login, logout, and `GET /api/auth/me`.
+* Secured protected controllers with authorization.
 
-## 7. Current Phase: Phase 3
-**Phase 3: Service Layer Extraction**
-
-* **Goal:** Move all business logic out of controllers into dedicated service classes inside `HR.Application`. Controllers must become thin HTTP adapters that parse requests, call services, and return results.
-* **What has been done:** Nothing yet. The feature branch and specs need to be created/reviewed for Phase 3.
-* **What needs to be done:**
-  * Extract features one by one: Departments → VacationRequests → Trips → Employees.
-  * Create `IXxxService` interfaces in `HR.Application`.
-  * Implement `XxxService` classes using `ApplicationDbContext` directly.
-  * Rewrite controllers to inject services and use the `Result<T>` pattern.
-  * Add pagination (`page`, `pageSize`) to all list endpoints.
-  * Implement `CancellationToken` in all async paths.
-* **Known blockers/warnings:** This is the largest behavioral refactor. It must be done feature by feature and tested thoroughly. Controllers currently inject `ApplicationDbContext` directly, which must be completely eliminated by the end of this phase.
-
-## 8. Remaining Phases
+### Phase 3: Service Layer Extraction
+* Moved department, vacation-request, trip, employee, and authentication orchestration into service interfaces and implementations.
+* Kept controllers as thin HTTP adapters.
+* Added pagination and cancellation forwarding.
+* Preserved employee create/delete transaction safety and generic global `500` handling.
 
 ### Phase 4: Repository Pattern & Entity Configurations
-* **Expected goal:** Abstract data access behind repository interfaces. Move `OnModelCreating` configurations into separate `IEntityTypeConfiguration<T>` classes.
-* **Expected work:** Create repositories (`IEmployeeRepository`, etc.) and refactor services from Phase 3 to use repositories instead of `ApplicationDbContext`.
-* **Dependencies:** Requires Phase 3 to be fully complete.
+* **Final status:** Complete
+* **Goal:** Abstract data access behind tailored repositories and split EF Core mappings into independently reviewable entity configurations without changing HTTP behavior or schema.
 
+Major changes:
+* Introduced tailored repositories for departments, vacation requests, trips, and employees.
+* Introduced read-only `IIdentityUserLookup`.
+* Introduced `IUnitOfWork` and `IDataTransaction`.
+* Removed service-level direct `ApplicationDbContext` usage.
+* Centralized EF paging in `HR.Infrastructure/Data/Pagination/PagedQueryExecutor.cs`, including the provider-aware SQLite test fallback.
+* Made `HR.Shared` fully EF-free.
+* Removed `PagedList<T>.CreateAsync` after migrating all callers.
+* Removed the raw `Employee` entity from the internal authentication result boundary and mapped to `EmployeeResponse` inside `AuthService`.
+* Extracted department, employee, vacation-request, and trip mappings into `IEntityTypeConfiguration<T>` classes.
+* Reduced `ApplicationDbContext.OnModelCreating` to:
+
+```csharp
+base.OnModelCreating(builder);
+builder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
+```
+
+* Added regression tests for paging, repositories, authentication compatibility, error payload parity, model parity, and employee transaction safety.
+
+Final verification:
+* `dotnet build .\HR.slnx -c Release`: passed with 0 warnings and 0 errors.
+* `dotnet test .\HR.slnx -c Release --no-build`: passed, 26/26 tests.
+* EF pending-model-change gate: passed with no model changes.
+* Runtime authentication signoff: passed for email login, employee-number login, `/api/auth/me`, logout, invalid login, JSON parity, claims coverage, and runtime `Set-Cookie` inspection.
+* Isolated API regression on port `5124`: passed, 43 existing API requests verified across authentication, departments, employees, vacation requests, trips, and representative errors.
+* Temporary runtime verification records were removed and the database returned to its original baseline counts.
+* No migrations were created or modified.
+* No public API behavior changed.
+* No Phase 5 business rules or Phase 6 DI restructuring entered Phase 4.
+
+Remaining warnings:
+* `git diff --check` reports only LF-to-CRLF conversion warnings.
+
+## 7. Remaining Phases
 ### Phase 5: HR Business Logic Improvements
-* **Expected goal:** Implement strict HR business rules (e.g., vacation overlap checks, status transition state machines, soft-deletes).
-* **Expected work:** Add new validations in the service layer and update entities (e.g., tracking `VacationBalanceDays`, soft delete flags).
-* **Dependencies:** Requires Phase 3 service layer to be in place.
+* **Status:** Not started
+* **Expected goal:** Add approved HR business rules such as vacation overlap checks, state transitions, soft deletion, and circular-manager rejection.
+* **Boundary:** Do not begin until the user explicitly approves Phase 5 specification work.
 
 ### Phase 6: DI Registration Cleanup
-* **Expected goal:** Centralize dependency injection so `Program.cs` is clean.
-* **Expected work:** Create `AddApplication()` and `AddInfrastructure()` extension methods in their respective projects.
-* **Dependencies:** Requires Phase 4 repositories.
+* **Status:** Not started
+* **Expected goal:** Complete project-owned dependency-registration cleanup.
 
 ### Phase 7: Advanced HR Features
-* **Expected goal:** Add features like Attendance Tracking, Role-Based Access Control (RBAC), Salary tracking, Document management, and Audit logs.
-* **Expected work:** New entities, migrations, and endpoints for advanced HR operations.
-* **Dependencies:** Requires Phases 5 and 6.
+* **Status:** Not started
+* **Expected goal:** Add separately approved advanced HR features.
 
-## 9. Architecture Notes
-* **Strict Layering:** `API` -> `Application` -> `Infrastructure` -> `Domain`.
-* **Domain Purity:** The Domain layer must never reference external packages or other layers.
-* **Result Pattern:** Services do not throw exceptions for business logic failures (like validation or not found). They return `Result<T>` or `Result`. Controllers map these results to HTTP status codes (e.g., `404`, `409`, `422`).
-* **Thin Controllers:** Controllers should only have ~4 lines of code per action (validate ModelState, call service, map error if failed, return success).
+## 8. Architecture Notes
+* Controllers are thin HTTP adapters.
+* Services own business orchestration.
+* Repositories own EF query and mutation access.
+* `IUnitOfWork` owns explicit save and transaction coordination.
+* `HR.Shared` must remain EF-free.
+* `ApplicationDbContext.OnModelCreating` must keep the Identity base call before assembly scanning.
+* Existing compatibility error codes remain allowed until a separately approved compatibility phase.
 
-## 10. Development Rules for Codex
-* Codex must **not** restart the project from scratch.
-* Codex must continue from the existing specs, plan, and tasks.
-* Codex must read this file before making changes.
-* Codex must read the relevant Spec Kit files (`spec.md`, `plan.md`, `tasks.md`) in the active `specs/` directory before implementing.
-* Codex must not skip phases.
-* Codex must not make major architecture changes without explicit approval.
-* Codex should update task status in `tasks.md` only when a task is actually completed and verified.
-* Codex should run relevant tests/build checks (`dotnet build`) after implementation.
-* Codex should explain changes after each task.
+## 9. Development Rules for Codex
+* Do not restart or redesign the project.
+* Read this handoff, the constitution, the master roadmap, and the relevant Spec Kit artifacts before beginning a new phase.
+* Do not skip phases.
+* Do not begin Phase 5 without explicit user approval.
+* Do not pull Phase 6 cleanup into Phase 5.
+* Update task status only after the corresponding work is actually verified.
+* Preserve public API behavior unless an approved specification explicitly permits a change.
 
-## 11. Recommended First Step for Codex
-1. Read this `CODEX_HANDOFF.md` file completely.
-2. Inspect the current Spec Kit files (especially the active `tasks.md` and `plan.md` for Phase 3).
-3. Summarize your understanding of the project state and the immediate next steps.
-4. **Wait for the user's confirmation before writing any code or modifying any files.**
+## 10. Recommended Next Step
+1. Confirm Phase 4 is closed.
+2. Wait for explicit user approval before generating any Phase 5 artifact.
+3. When Phase 5 is approved, inspect the constitution, `PLAN.md`, and existing source structure before creating the Phase 5 specification.
 
-## 12. Unknowns / Things to Verify
-* **Phase 2 Completion Status:** While Phase 2 tasks were executed, Codex should verify that `dotnet build` succeeds and the `[Authorize]` attributes were applied correctly without compilation errors.
-* **Spec Kit generation for Phase 3:** It is unclear if `specs/004-service-layer/` (or similar) has been generated yet. If not, the Spec Kit workflow (`/speckit-specify`, `/speckit-plan`, `/speckit-tasks`) for Phase 3 needs to be run before coding begins.
+## 11. Known Warnings
+* `git diff --check` currently reports LF-to-CRLF conversion warnings only.
+* Phase 4 intentionally preserved legacy-compatible error codes. Any error-code normalization requires a separate approved compatibility decision.

@@ -618,19 +618,11 @@ Every async method in every controller and service must accept and forward `Canc
 
 ### Repository Interface Pattern
 
-```csharp
-public interface IEmployeeRepository
-{
-    Task<Employee?> GetByIdAsync(Guid id, CancellationToken ct = default);
-    Task<Employee?> GetByIdWithDetailsAsync(Guid id, CancellationToken ct = default);
-    Task<bool> ExistsByNumberAsync(string number, CancellationToken ct = default);
-    Task<Guid?> GetManagerIdAsync(Guid employeeId, CancellationToken ct = default);
-    IQueryable<Employee> Query();
-    Task AddAsync(Employee employee, CancellationToken ct = default);
-    void Remove(Employee employee);
-    Task<int> SaveChangesAsync(CancellationToken ct = default);
-}
-```
+Use tailored repository methods for the reads and mutations required by
+current workflows. Repositories do not expose raw `IQueryable<T>` values
+or own `SaveChangesAsync`; the infrastructure-owned `IUnitOfWork`
+coordinates saves and transactions. The Phase 4 contracts are documented
+in [Internal Repository Contracts](specs/004-repository-entity-configurations/contracts/repository-contracts.md).
 
 Repositories are registered as `Scoped`. They are injected into services; services no longer reference `ApplicationDbContext` directly.
 
@@ -666,8 +658,8 @@ public class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
             .HasForeignKey(e => e.ManagerId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        entity.HasOne(e => e.IdentityUser)
-            .WithOne(u => u!.Employee)
+        entity.HasOne<ApplicationUser>()
+            .WithOne(u => u.Employee)
             .HasForeignKey<Employee>(e => e.ApplicationUserId)
             .OnDelete(DeleteBehavior.Cascade);
     }

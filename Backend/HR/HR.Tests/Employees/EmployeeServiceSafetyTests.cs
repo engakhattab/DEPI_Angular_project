@@ -1,12 +1,11 @@
 using HR.Application.DTOs.Employees;
+using HR.Application.Employees;
 using HR.Domain.Entities;
-using HR.Infrastructure.Data;
 using HR.Infrastructure.Employees;
-using HR.Infrastructure.Identity;
+using HR.Infrastructure.Repositories;
+using HR.Tests.TestInfrastructure;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace HR.Tests.Employees;
 
@@ -104,85 +103,38 @@ public class EmployeeServiceSafetyTests
 
     private sealed class EmployeeServiceFixture : IAsyncDisposable
     {
-        private readonly SqliteConnection _connection;
-        private readonly ServiceProvider _provider;
-        private readonly IServiceScope _scope;
-        private readonly UserManager<ApplicationUser> _userManager;
+        private readonly SqliteTestEnvironment _environment;
 
         private EmployeeServiceFixture(
-            SqliteConnection connection,
-            ServiceProvider provider,
-            IServiceScope scope,
-            ApplicationDbContext context,
-            UserManager<ApplicationUser> userManager,
+            SqliteTestEnvironment environment,
             Department department)
         {
-            _connection = connection;
-            _provider = provider;
-            _scope = scope;
-            Context = context;
-            _userManager = userManager;
+            _environment = environment;
+            Context = environment.Context;
             Department = department;
-            Service = new EmployeeService(context, userManager);
+            Service = environment.GetRequiredService<IEmployeeService>();
         }
 
-        public ApplicationDbContext Context { get; }
+        public HR.Infrastructure.Data.ApplicationDbContext Context { get; }
 
         public Department Department { get; }
 
-        public EmployeeService Service { get; }
+        public IEmployeeService Service { get; }
 
         public static async Task<EmployeeServiceFixture> CreateAsync()
         {
-            var connection = new SqliteConnection("Data Source=:memory:");
-            await connection.OpenAsync();
-
-            var services = new ServiceCollection();
-            services.AddLogging();
-            services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connection));
-            services
-                .AddIdentityCore<ApplicationUser>()
-                .AddRoles<IdentityRole>()
-                .AddEntityFrameworkStores<ApplicationDbContext>();
-
-            var provider = services.BuildServiceProvider();
-            var scope = provider.CreateScope();
-            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            await context.Database.EnsureCreatedAsync();
-            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-
-            var department = new Department { Name = "Engineering" };
-            context.Departments.Add(department);
-            await context.SaveChangesAsync();
-
-            return new EmployeeServiceFixture(connection, provider, scope, context, userManager, department);
+            var environment = await SqliteTestEnvironment.CreateAsync(seedDefaultDepartment: true);
+            return new EmployeeServiceFixture(environment, environment.DefaultDepartment!);
         }
 
         public async Task<Employee> AddEmployeeAsync(string employeeNumber, string email, Guid? managerId = null)
         {
-            var user = new ApplicationUser { UserName = email, Email = email };
-            var identityResult = await _userManager.CreateAsync(user, "ValidPass1!");
-            Assert.True(identityResult.Succeeded, string.Join(" ", identityResult.Errors.Select(e => e.Description)));
-
-            var employee = new Employee
-            {
-                EmployeeNumber = employeeNumber,
-                FullName = employeeNumber,
-                Email = email,
-                DepartmentId = Department.Id,
-                ManagerId = managerId,
-                ApplicationUserId = user.Id
-            };
-            Context.Employees.Add(employee);
-            await Context.SaveChangesAsync();
-            return employee;
+            return await _environment.AddEmployeeAsync(employeeNumber, email, Department.Id, managerId);
         }
 
         public async ValueTask DisposeAsync()
         {
-            _scope.Dispose();
-            await _provider.DisposeAsync();
-            await _connection.DisposeAsync();
+            await _environment.DisposeAsync();
         }
     }
 }

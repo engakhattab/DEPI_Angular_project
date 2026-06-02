@@ -1,24 +1,22 @@
 using HR.Application.Departments;
 using HR.Application.DTOs.Departments;
 using HR.Domain.Entities;
-using HR.Infrastructure.Data;
+using HR.Infrastructure.Repositories;
 using HR.Shared.Pagination;
 using HR.Shared.Results;
-using Microsoft.EntityFrameworkCore;
 
 namespace HR.Infrastructure.Departments;
 
-public class DepartmentService(ApplicationDbContext context) : IDepartmentService
+public class DepartmentService(
+    IDepartmentRepository departmentRepository,
+    IUnitOfWork unitOfWork) : IDepartmentService
 {
-    private readonly ApplicationDbContext _context = context;
+    private readonly IDepartmentRepository _departmentRepository = departmentRepository;
+    private readonly IUnitOfWork _unitOfWork = unitOfWork;
 
     public async Task<PagedList<DepartmentResponse>> GetDepartmentsAsync(int page, int pageSize, CancellationToken ct)
     {
-        var query = _context.Departments
-            .AsNoTracking()
-            .OrderBy(d => d.Name);
-
-        var pagedEntities = await PagedList<Department>.CreateAsync(query, page, pageSize, ct);
+        var pagedEntities = await _departmentRepository.GetPageAsync(page, pageSize, ct);
         var items = pagedEntities.Items.Select(MapToResponse).ToList();
 
         return new PagedList<DepartmentResponse>(items, pagedEntities.TotalCount, pagedEntities.Page, pagedEntities.PageSize);
@@ -26,16 +24,13 @@ public class DepartmentService(ApplicationDbContext context) : IDepartmentServic
 
     public async Task<DepartmentResponse?> GetDepartmentByIdAsync(Guid id, CancellationToken ct)
     {
-        var department = await _context.Departments
-            .AsNoTracking()
-            .FirstOrDefaultAsync(d => d.Id == id, ct);
-
+        var department = await _departmentRepository.GetByIdAsync(id, ct);
         return department is null ? null : MapToResponse(department);
     }
 
     public async Task<Result<DepartmentResponse>> CreateDepartmentAsync(DepartmentCreateRequest request, CancellationToken ct)
     {
-        if (await _context.Departments.AnyAsync(d => d.Name == request.Name, ct))
+        if (await _departmentRepository.ExistsByNameAsync(request.Name, null, ct))
         {
             return Result<DepartmentResponse>.Failure(
                 ServiceError.Conflict($"Department '{request.Name}' already exists.", "CONFLICT"));
@@ -43,39 +38,36 @@ public class DepartmentService(ApplicationDbContext context) : IDepartmentServic
 
         var department = new Department { Name = request.Name };
 
-        _context.Departments.Add(department);
-        await _context.SaveChangesAsync(ct);
+        await _departmentRepository.AddAsync(department, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
 
         return Result<DepartmentResponse>.Success(MapToResponse(department));
     }
 
     public async Task<Result<DepartmentResponse>> UpdateDepartmentAsync(Guid id, DepartmentUpdateRequest request, CancellationToken ct)
     {
-        var department = await _context.Departments.FirstOrDefaultAsync(d => d.Id == id, ct);
+        var department = await _departmentRepository.GetByIdAsync(id, ct);
         if (department is null)
         {
             return Result<DepartmentResponse>.Failure(
                 ServiceError.NotFound($"Department '{id}' was not found.", "NOT_FOUND"));
         }
 
-        if (await _context.Departments.AnyAsync(d => d.Id != id && d.Name == request.Name, ct))
+        if (await _departmentRepository.ExistsByNameAsync(request.Name, id, ct))
         {
             return Result<DepartmentResponse>.Failure(
                 ServiceError.Conflict($"Department '{request.Name}' already exists.", "CONFLICT"));
         }
 
         department.Name = request.Name;
-        await _context.SaveChangesAsync(ct);
+        await _unitOfWork.SaveChangesAsync(ct);
 
         return Result<DepartmentResponse>.Success(MapToResponse(department));
     }
 
     public async Task<Result> DeleteDepartmentAsync(Guid id, CancellationToken ct)
     {
-        var department = await _context.Departments
-            .Include(d => d.Employees)
-            .FirstOrDefaultAsync(d => d.Id == id, ct);
-
+        var department = await _departmentRepository.GetByIdWithEmployeesAsync(id, ct);
         if (department is null)
         {
             return Result.Failure(ServiceError.NotFound($"Department '{id}' was not found.", "NOT_FOUND"));
@@ -87,8 +79,8 @@ public class DepartmentService(ApplicationDbContext context) : IDepartmentServic
                 ServiceError.Conflict("Cannot delete a department that still has employees assigned.", "CONFLICT"));
         }
 
-        _context.Departments.Remove(department);
-        await _context.SaveChangesAsync(ct);
+        _departmentRepository.Remove(department);
+        await _unitOfWork.SaveChangesAsync(ct);
 
         return Result.Success();
     }
