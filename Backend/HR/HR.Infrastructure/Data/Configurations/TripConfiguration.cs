@@ -40,5 +40,12 @@ public class TripConfiguration : IEntityTypeConfiguration<Trip>
 
         entity.Property(t => t.CreatedAt)
             .IsRequired();
+
+        entity.HasIndex(t => t.RequestedByEmployeeId);
+
+        entity.HasOne(t => t.RequestedBy)
+            .WithMany()
+            .HasForeignKey(t => t.RequestedByEmployeeId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

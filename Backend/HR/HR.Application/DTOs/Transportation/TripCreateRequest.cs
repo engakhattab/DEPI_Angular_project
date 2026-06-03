@@ -5,6 +5,9 @@ namespace HR.Application.DTOs.Transportation;
 public class TripCreateRequest
 {
     [Required]
+    public Guid RequestedByEmployeeId { get; set; }
+
+    [Required]
     [StringLength(200)]
     public string ReferenceName { get; set; } = string.Empty;
 

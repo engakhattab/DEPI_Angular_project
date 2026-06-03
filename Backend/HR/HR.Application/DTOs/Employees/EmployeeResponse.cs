@@ -32,6 +32,12 @@ public class EmployeeResponse
 
     public EmployeeStatus Status { get; set; } = EmployeeStatus.Active;
 
+    public int VacationBalanceDays { get; set; } = 21;
+
+    public bool IsDeleted { get; set; }
+
+    public DateTimeOffset? TerminatedAt { get; set; }
+
     public string IdentityUserId { get; set; } = string.Empty;
 
     public string UserName { get; set; } = string.Empty;

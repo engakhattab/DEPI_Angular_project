@@ -33,6 +33,16 @@ public class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
             .HasConversion<string>()
             .HasMaxLength(32);
 
+        entity.Property(e => e.VacationBalanceDays)
+            .HasDefaultValue(21)
+            .IsRequired();
+
+        entity.Property(e => e.IsDeleted)
+            .HasDefaultValue(false)
+            .IsRequired();
+
+        entity.HasIndex(e => new { e.Email, e.IsDeleted, e.Status });
+
         entity.HasOne(e => e.Department)
             .WithMany(d => d.Employees)
             .HasForeignKey(e => e.DepartmentId)

@@ -117,6 +117,15 @@ public class AuthServiceTests
         public Task<IReadOnlyList<Employee>> GetDirectReportsAsync(Guid managerId, CancellationToken ct)
             => throw new NotSupportedException();
 
+        public Task<bool> ExistsActiveWithEmailAsync(string email, Guid? excludingEmployeeId, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        public Task<Guid?> GetManagerIdAsync(Guid employeeId, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        public Task<bool> IsAuthenticationEligibleAsync(Guid employeeId, CancellationToken ct)
+            => throw new NotSupportedException();
+
         public Task<bool> ExistsAsync(Guid id, CancellationToken ct)
             => throw new NotSupportedException();
 

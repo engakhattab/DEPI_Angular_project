@@ -19,6 +19,14 @@ public class VacationRequestResponse
 
     public VacationRequestStatus Status { get; set; }
 
+    public int WorkingDayCount { get; set; }
+
+    public Guid? ReviewedByEmployeeId { get; set; }
+
+    public string? ReviewedByEmployeeName { get; set; }
+
+    public DateTimeOffset? ReviewedAt { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset? UpdatedAt { get; set; }
@@ -34,6 +42,10 @@ public class VacationRequestResponse
             EndDate = request.EndDate,
             Reason = request.Reason,
             Status = request.Status,
+            WorkingDayCount = request.WorkingDayCount,
+            ReviewedByEmployeeId = request.ReviewedByEmployeeId,
+            ReviewedByEmployeeName = request.ReviewedBy?.FullName,
+            ReviewedAt = request.ReviewedAt,
             CreatedAt = request.CreatedAt,
             UpdatedAt = request.UpdatedAt
         };

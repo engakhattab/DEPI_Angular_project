@@ -19,9 +19,21 @@ public class VacationRequestConfiguration : IEntityTypeConfiguration<VacationReq
         entity.Property(v => v.CreatedAt)
             .IsRequired();
 
+        entity.Property(v => v.WorkingDayCount)
+            .IsRequired();
+
+        entity.HasIndex(v => new { v.EmployeeId, v.Status, v.StartDate, v.EndDate });
+
+        entity.HasIndex(v => v.ReviewedByEmployeeId);
+
         entity.HasOne(v => v.Employee)
             .WithMany()
             .HasForeignKey(v => v.EmployeeId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        entity.HasOne(v => v.ReviewedBy)
+            .WithMany()
+            .HasForeignKey(v => v.ReviewedByEmployeeId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

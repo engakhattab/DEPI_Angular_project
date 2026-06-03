@@ -49,4 +49,44 @@ public class EmployeeRepositoryTests
         Assert.True(await repository.ExistsAsync(report.Id, CancellationToken.None));
         Assert.True(await repository.ExistsByNumberAsync(report.EmployeeNumber, CancellationToken.None));
     }
+
+    [Fact]
+    public async Task PhaseFiveLookups_FilterSoftDeletedAndReturnLifecycleSignals()
+    {
+        await using var environment = await SqliteTestEnvironment.CreateAsync();
+        var department = await environment.AddDepartmentAsync("Finance");
+        var manager = await environment.AddEmployeeAsync("EMP-320", "manager320@example.com", department.Id);
+        var active = await environment.AddEmployeeAsync("EMP-321", "active321@example.com", department.Id, manager.Id, EmployeeStatus.Active);
+        var terminated = await environment.AddEmployeeAsync(
+            "EMP-322",
+            "terminated322@example.com",
+            department.Id,
+            status: EmployeeStatus.Terminated,
+            terminatedAt: DateTimeOffset.UtcNow);
+        var deleted = await environment.AddEmployeeAsync(
+            "EMP-323",
+            "deleted323@example.com",
+            department.Id,
+            status: EmployeeStatus.Terminated,
+            isDeleted: true,
+            terminatedAt: DateTimeOffset.UtcNow);
+        var repository = new EmployeeRepository(environment.Context);
+
+        var page = await repository.GetPageWithDetailsAsync(null, 1, 25, CancellationToken.None);
+        var deletedDetail = await repository.GetByIdWithDetailsAsync(deleted.Id, CancellationToken.None);
+        var managerId = await repository.GetManagerIdAsync(active.Id, CancellationToken.None);
+
+        Assert.Contains(page.Items, employee => employee.Id == active.Id);
+        Assert.Contains(page.Items, employee => employee.Id == terminated.Id);
+        Assert.DoesNotContain(page.Items, employee => employee.Id == deleted.Id);
+        Assert.Null(deletedDetail);
+        Assert.Equal(manager.Id, managerId);
+        Assert.True(await repository.ExistsActiveWithEmailAsync("ACTIVE321@example.com", null, CancellationToken.None));
+        Assert.False(await repository.ExistsActiveWithEmailAsync("terminated322@example.com", null, CancellationToken.None));
+        Assert.False(await repository.ExistsActiveWithEmailAsync("deleted323@example.com", null, CancellationToken.None));
+        Assert.False(await repository.ExistsActiveWithEmailAsync("active321@example.com", active.Id, CancellationToken.None));
+        Assert.True(await repository.IsAuthenticationEligibleAsync(active.Id, CancellationToken.None));
+        Assert.False(await repository.IsAuthenticationEligibleAsync(terminated.Id, CancellationToken.None));
+        Assert.False(await repository.IsAuthenticationEligibleAsync(deleted.Id, CancellationToken.None));
+    }
 }

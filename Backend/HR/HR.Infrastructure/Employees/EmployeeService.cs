@@ -7,6 +7,7 @@ using HR.Infrastructure.Repositories;
 using HR.Shared.Pagination;
 using HR.Shared.Results;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Logging;
 
 namespace HR.Infrastructure.Employees;
 
@@ -16,7 +17,9 @@ public class EmployeeService(
     IVacationRequestRepository vacationRequestRepository,
     IIdentityUserLookup identityUserLookup,
     IUnitOfWork unitOfWork,
-    UserManager<ApplicationUser> userManager) : IEmployeeService
+    UserManager<ApplicationUser> userManager,
+    ILogger<EmployeeService> logger,
+    TimeProvider timeProvider) : IEmployeeService
 {
     private readonly IEmployeeRepository _employeeRepository = employeeRepository;
     private readonly IDepartmentRepository _departmentRepository = departmentRepository;
@@ -24,6 +27,8 @@ public class EmployeeService(
     private readonly IIdentityUserLookup _identityUserLookup = identityUserLookup;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
     private readonly UserManager<ApplicationUser> _userManager = userManager;
+    private readonly ILogger<EmployeeService> _logger = logger;
+    private readonly TimeProvider _timeProvider = timeProvider;
 
     public async Task<PagedList<EmployeeResponse>> GetEmployeesAsync(
         EmployeeStatus? status,
@@ -44,7 +49,6 @@ public class EmployeeService(
     public async Task<EmployeeResponse?> GetEmployeeByIdAsync(Guid id, CancellationToken ct)
     {
         var employee = await _employeeRepository.GetByIdWithDetailsAsync(id, ct);
-
         if (employee is null)
         {
             return null;
@@ -73,11 +77,26 @@ public class EmployeeService(
         if (request.ManagerId.HasValue)
         {
             manager = await _employeeRepository.GetByIdAsync(request.ManagerId.Value, ct);
-            if (manager is null)
+            if (manager is null || manager.IsDeleted)
             {
                 return Result<EmployeeCreatedResponse>.Failure(
                     ServiceError.NotFound($"Manager '{request.ManagerId}' was not found.", "NOT_FOUND"));
             }
+        }
+
+        if (request.Status == EmployeeStatus.Active
+            && await _employeeRepository.ExistsActiveWithEmailAsync(request.Email, null, ct))
+        {
+            return Result<EmployeeCreatedResponse>.Failure(
+                ServiceError.Conflict("An active employee with this email already exists.", "CONFLICT"));
+        }
+
+        if (manager is not null && manager.DepartmentId != request.DepartmentId)
+        {
+            _logger.LogWarning(
+                "Employee {EmployeeNumber} assigned manager {ManagerId} from a different department",
+                request.EmployeeNumber,
+                manager.Id);
         }
 
         var password = string.IsNullOrWhiteSpace(request.InitialPassword)
@@ -119,6 +138,8 @@ public class EmployeeService(
                 PhoneNumber = request.PhoneNumber,
                 Notes = request.Notes,
                 Status = request.Status,
+                VacationBalanceDays = 21,
+                TerminatedAt = request.Status == EmployeeStatus.Terminated ? _timeProvider.GetUtcNow() : null,
                 ApplicationUserId = user.Id,
                 Department = department,
                 Manager = manager
@@ -151,7 +172,7 @@ public class EmployeeService(
     public async Task<Result<EmployeeResponse>> UpdateEmployeeAsync(Guid id, EmployeeUpdateRequest request, CancellationToken ct)
     {
         var employee = await _employeeRepository.GetByIdAsync(id, ct);
-        if (employee is null)
+        if (employee is null || employee.IsDeleted)
         {
             return Result<EmployeeResponse>.Failure(
                 ServiceError.NotFound($"Employee '{id}' was not found.", "NOT_FOUND"));
@@ -160,7 +181,7 @@ public class EmployeeService(
         if (request.ManagerId.HasValue && request.ManagerId.Value == id)
         {
             return Result<EmployeeResponse>.Failure(
-                ServiceError.Validation("An employee cannot be their own manager.", "VALIDATION"));
+                ServiceError.BusinessRule("An employee cannot be their own manager."));
         }
 
         var department = await _departmentRepository.GetByIdAsync(request.DepartmentId, ct);
@@ -174,12 +195,42 @@ public class EmployeeService(
         if (request.ManagerId.HasValue)
         {
             manager = await _employeeRepository.GetByIdAsync(request.ManagerId.Value, ct);
-            if (manager is null)
+            if (manager is null || manager.IsDeleted)
             {
                 return Result<EmployeeResponse>.Failure(
                     ServiceError.NotFound($"Manager '{request.ManagerId}' was not found.", "NOT_FOUND"));
             }
+
+            if (await WouldCreateCycleAsync(id, request.ManagerId.Value, ct))
+            {
+                return Result<EmployeeResponse>.Failure(
+                    ServiceError.BusinessRule("The requested manager assignment would create a circular reporting chain."));
+            }
         }
+
+        if (request.Status == EmployeeStatus.Active
+            && await _employeeRepository.ExistsActiveWithEmailAsync(request.Email, id, ct))
+        {
+            return Result<EmployeeResponse>.Failure(
+                ServiceError.Conflict("An active employee with this email already exists.", "CONFLICT"));
+        }
+
+        if (employee.Status != request.Status && !IsAllowedStatusTransition(employee.Status, request.Status))
+        {
+            return Result<EmployeeResponse>.Failure(
+                ServiceError.BusinessRule(
+                    $"Cannot transition an employee from '{employee.Status}' to '{request.Status}'."));
+        }
+
+        if (manager is not null && manager.DepartmentId != request.DepartmentId)
+        {
+            _logger.LogWarning(
+                "Employee {EmployeeId} assigned manager {ManagerId} from a different department",
+                id,
+                manager.Id);
+        }
+
+        var shouldTerminate = employee.Status != EmployeeStatus.Terminated && request.Status == EmployeeStatus.Terminated;
 
         employee.FullName = request.FullName;
         employee.Email = request.Email;
@@ -192,7 +243,23 @@ public class EmployeeService(
         employee.Notes = request.Notes;
         employee.Status = request.Status;
 
-        var user = await _userManager.FindByIdAsync(employee.ApplicationUserId);
+        if (shouldTerminate)
+        {
+            employee.TerminatedAt ??= _timeProvider.GetUtcNow();
+
+            var pendingRequests = await _vacationRequestRepository.GetPendingByEmployeeIdAsync(id, ct);
+            foreach (var pendingRequest in pendingRequests)
+            {
+                pendingRequest.Status = VacationRequestStatus.Rejected;
+                pendingRequest.UpdatedAt = _timeProvider.GetUtcNow();
+            }
+        }
+
+        ApplicationUser? user = null;
+
+        await using var transaction = await _unitOfWork.BeginTransactionAsync(ct);
+
+        user = await _userManager.FindByIdAsync(employee.ApplicationUserId);
         if (user is not null && !string.Equals(user.Email, request.Email, StringComparison.OrdinalIgnoreCase))
         {
             user.Email = request.Email;
@@ -200,12 +267,14 @@ public class EmployeeService(
             var updateResult = await _userManager.UpdateAsync(user);
             if (!updateResult.Succeeded)
             {
+                await transaction.RollbackAsync(ct);
                 return Result<EmployeeResponse>.Failure(
                     ServiceError.Validation(BuildIdentityErrorMessage(updateResult.Errors), "VALIDATION"));
             }
         }
 
         await _unitOfWork.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
 
         employee.Department = department;
         employee.Manager = manager;
@@ -221,8 +290,13 @@ public class EmployeeService(
             return Result.Failure(ServiceError.NotFound($"Employee '{id}' was not found.", "NOT_FOUND"));
         }
 
+        if (employee.IsDeleted)
+        {
+            return Result.Success();
+        }
+
         var directReports = await _employeeRepository.GetDirectReportsAsync(id, ct);
-        var vacationRequests = await _vacationRequestRepository.GetByEmployeeIdAsync(id, ct);
+        var pendingVacationRequests = await _vacationRequestRepository.GetPendingByEmployeeIdAsync(id, ct);
 
         await using var transaction = await _unitOfWork.BeginTransactionAsync(ct);
         foreach (var report in directReports)
@@ -230,31 +304,22 @@ public class EmployeeService(
             report.ManagerId = null;
         }
 
-        if (vacationRequests.Count > 0)
+        foreach (var request in pendingVacationRequests)
         {
-            _vacationRequestRepository.RemoveRange(vacationRequests);
+            request.Status = VacationRequestStatus.Rejected;
+            request.UpdatedAt = _timeProvider.GetUtcNow();
         }
 
-        _employeeRepository.Remove(employee);
+        employee.IsDeleted = true;
+        employee.Status = EmployeeStatus.Terminated;
+        employee.TerminatedAt ??= _timeProvider.GetUtcNow();
+
         await _unitOfWork.SaveChangesAsync(ct);
-
-        var user = await _userManager.FindByIdAsync(employee.ApplicationUserId);
-        if (user is not null)
-        {
-            var deleteUserResult = await _userManager.DeleteAsync(user);
-            if (!deleteUserResult.Succeeded)
-            {
-                await transaction.RollbackAsync(ct);
-                return Result.Failure(
-                    ServiceError.Validation(BuildIdentityErrorMessage(deleteUserResult.Errors), "VALIDATION"));
-            }
-        }
-
         await transaction.CommitAsync(ct);
         return Result.Success();
     }
 
-    private static EmployeeResponse MapToResponse(Employee employee, ApplicationUser? user)
+    private EmployeeResponse MapToResponse(Employee employee, ApplicationUser? user)
     {
         return new EmployeeResponse
         {
@@ -272,9 +337,45 @@ public class EmployeeService(
             PhoneNumber = employee.PhoneNumber,
             Notes = employee.Notes,
             Status = employee.Status,
+            VacationBalanceDays = employee.VacationBalanceDays,
+            IsDeleted = employee.IsDeleted,
+            TerminatedAt = employee.TerminatedAt,
             IdentityUserId = employee.ApplicationUserId,
             UserName = user?.UserName ?? string.Empty
         };
+    }
+
+    private static bool IsAllowedStatusTransition(EmployeeStatus currentStatus, EmployeeStatus requestedStatus)
+    {
+        return currentStatus switch
+        {
+            EmployeeStatus.Active => requestedStatus is EmployeeStatus.Suspended or EmployeeStatus.Terminated,
+            EmployeeStatus.Suspended => requestedStatus is EmployeeStatus.Active or EmployeeStatus.Terminated,
+            EmployeeStatus.Terminated => false,
+            _ => false
+        };
+    }
+
+    private async Task<bool> WouldCreateCycleAsync(Guid employeeId, Guid proposedManagerId, CancellationToken ct)
+    {
+        var current = proposedManagerId;
+        for (var depth = 0; depth < 64; depth++)
+        {
+            if (current == employeeId)
+            {
+                return true;
+            }
+
+            var managerId = await _employeeRepository.GetManagerIdAsync(current, ct);
+            if (!managerId.HasValue)
+            {
+                return false;
+            }
+
+            current = managerId.Value;
+        }
+
+        return true;
     }
 
     private static string GenerateTemporaryPassword()

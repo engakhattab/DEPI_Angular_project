@@ -30,6 +30,15 @@ public class ApplicationDbContextModelParityTests
         Assert.Equal(20, employeeEntity!.FindProperty(nameof(Employee.EmployeeNumber))!.GetMaxLength());
         Assert.True(employeeEntity.FindIndex(employeeEntity.FindProperty(nameof(Employee.EmployeeNumber))!)!.IsUnique);
         Assert.Equal(32, employeeEntity.FindProperty(nameof(Employee.Status))!.GetMaxLength());
+        Assert.Equal(21, employeeEntity.FindProperty(nameof(Employee.VacationBalanceDays))!.GetDefaultValue());
+        Assert.Equal(false, employeeEntity.FindProperty(nameof(Employee.IsDeleted))!.GetDefaultValue());
+        Assert.NotNull(employeeEntity.FindIndex(
+            new[]
+            {
+                employeeEntity.FindProperty(nameof(Employee.Email))!,
+                employeeEntity.FindProperty(nameof(Employee.IsDeleted))!,
+                employeeEntity.FindProperty(nameof(Employee.Status))!
+            }));
         Assert.Equal(
             DeleteBehavior.Restrict,
             employeeEntity.FindNavigation(nameof(Employee.Department))!.ForeignKey.DeleteBehavior);
@@ -43,10 +52,26 @@ public class ApplicationDbContextModelParityTests
         Assert.Equal(32, tripEntity!.FindProperty(nameof(Trip.TripCode))!.GetMaxLength());
         Assert.True(tripEntity.FindIndex(tripEntity.FindProperty(nameof(Trip.TripCode))!)!.IsUnique);
         Assert.True(tripEntity.FindIndex(tripEntity.FindProperty(nameof(Trip.RequestCode))!)!.IsUnique);
+        Assert.NotNull(tripEntity.FindIndex(tripEntity.FindProperty(nameof(Trip.RequestedByEmployeeId))!));
+        Assert.Equal(
+            DeleteBehavior.Restrict,
+            tripEntity.FindNavigation(nameof(Trip.RequestedBy))!.ForeignKey.DeleteBehavior);
 
         Assert.Equal(500, vacationEntity!.FindProperty(nameof(VacationRequest.Reason))!.GetMaxLength());
+        Assert.NotNull(vacationEntity.FindIndex(vacationEntity.FindProperty(nameof(VacationRequest.ReviewedByEmployeeId))!));
+        Assert.NotNull(vacationEntity.FindIndex(
+            new[]
+            {
+                vacationEntity.FindProperty(nameof(VacationRequest.EmployeeId))!,
+                vacationEntity.FindProperty(nameof(VacationRequest.Status))!,
+                vacationEntity.FindProperty(nameof(VacationRequest.StartDate))!,
+                vacationEntity.FindProperty(nameof(VacationRequest.EndDate))!
+            }));
         Assert.Equal(
             DeleteBehavior.Cascade,
             vacationEntity.FindNavigation(nameof(VacationRequest.Employee))!.ForeignKey.DeleteBehavior);
+        Assert.Equal(
+            DeleteBehavior.Restrict,
+            vacationEntity.FindNavigation(nameof(VacationRequest.ReviewedBy))!.ForeignKey.DeleteBehavior);
     }
 }

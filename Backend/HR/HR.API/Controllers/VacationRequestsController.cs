@@ -6,6 +6,7 @@ using HR.Shared.Pagination;
 using HR.Shared.Results;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace HR.API.Controllers;
 
@@ -76,7 +77,13 @@ public class VacationRequestsController(IVacationRequestService vacationRequestS
             return ValidationProblem(ModelState);
         }
 
-        var result = await _vacationRequestService.UpdateVacationStatusAsync(id, request, cancellationToken);
+        var reviewerClaim = User.FindFirstValue("employee_id");
+        if (!Guid.TryParse(reviewerClaim, out var reviewerEmployeeId))
+        {
+            return this.ToActionResult(ServiceError.Unauthorized("Authenticated employee context is invalid."));
+        }
+
+        var result = await _vacationRequestService.UpdateVacationStatusAsync(id, reviewerEmployeeId, request, cancellationToken);
         if (!result.IsSuccess)
         {
             return this.ToActionResult(result.Error!);

@@ -19,4 +19,8 @@ public class Trip
     public string RequestCode { get; set; } = string.Empty;
 
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    public Guid? RequestedByEmployeeId { get; set; }
+
+    public Employee? RequestedBy { get; set; }
 }

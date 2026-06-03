@@ -46,4 +46,39 @@ public class VacationRequestRepositoryTests
         Assert.Single(byEmployee);
         Assert.Equal(request.Id, byEmployee.Single().Id);
     }
+
+    [Fact]
+    public async Task HasOverlappingPendingOrApprovedAsync_UsesInclusiveBoundariesAndIgnoresRejectedRows()
+    {
+        await using var environment = await SqliteTestEnvironment.CreateAsync(seedDefaultDepartment: true);
+        var employee = await environment.AddEmployeeAsync("EMP-204", "employee-d@example.com", environment.DefaultDepartment!.Id);
+        await environment.AddVacationRequestAsync(
+            employee.Id,
+            VacationRequestStatus.Pending,
+            DateTimeOffset.UtcNow,
+            startDate: new DateOnly(2026, 6, 14),
+            endDate: new DateOnly(2026, 6, 16));
+        await environment.AddVacationRequestAsync(
+            employee.Id,
+            VacationRequestStatus.Rejected,
+            DateTimeOffset.UtcNow,
+            startDate: new DateOnly(2026, 6, 20),
+            endDate: new DateOnly(2026, 6, 21));
+
+        var repository = new VacationRequestRepository(environment.Context);
+
+        var boundaryOverlap = await repository.HasOverlappingPendingOrApprovedAsync(
+            employee.Id,
+            new DateOnly(2026, 6, 16),
+            new DateOnly(2026, 6, 18),
+            CancellationToken.None);
+        var rejectedOnlyOverlap = await repository.HasOverlappingPendingOrApprovedAsync(
+            employee.Id,
+            new DateOnly(2026, 6, 20),
+            new DateOnly(2026, 6, 21),
+            CancellationToken.None);
+
+        Assert.True(boundaryOverlap);
+        Assert.False(rejectedOnlyOverlap);
+    }
 }

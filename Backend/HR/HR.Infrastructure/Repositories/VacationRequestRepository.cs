@@ -20,7 +20,8 @@ public class VacationRequestRepository(ApplicationDbContext context) : IVacation
     {
         IQueryable<VacationRequest> query = _context.VacationRequests
             .AsNoTracking()
-            .Include(v => v.Employee);
+            .Include(v => v.Employee)
+            .Include(v => v.ReviewedBy);
 
         if (status.HasValue)
         {
@@ -45,6 +46,15 @@ public class VacationRequestRepository(ApplicationDbContext context) : IVacation
         return _context.VacationRequests
             .AsNoTracking()
             .Include(v => v.Employee)
+            .Include(v => v.ReviewedBy)
+            .FirstOrDefaultAsync(v => v.Id == id, ct);
+    }
+
+    public Task<VacationRequest?> GetTrackedByIdWithEmployeeAndReviewerAsync(Guid id, CancellationToken ct)
+    {
+        return _context.VacationRequests
+            .Include(v => v.Employee)
+            .Include(v => v.ReviewedBy)
             .FirstOrDefaultAsync(v => v.Id == id, ct);
     }
 
@@ -53,6 +63,27 @@ public class VacationRequestRepository(ApplicationDbContext context) : IVacation
         return await _context.VacationRequests
             .Where(v => v.EmployeeId == employeeId)
             .ToListAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<VacationRequest>> GetPendingByEmployeeIdAsync(Guid employeeId, CancellationToken ct)
+    {
+        return await _context.VacationRequests
+            .Where(v => v.EmployeeId == employeeId && v.Status == VacationRequestStatus.Pending)
+            .ToListAsync(ct);
+    }
+
+    public Task<bool> HasOverlappingPendingOrApprovedAsync(
+        Guid employeeId,
+        DateOnly startDate,
+        DateOnly endDate,
+        CancellationToken ct)
+    {
+        return _context.VacationRequests.AnyAsync(
+            v => v.EmployeeId == employeeId
+                && (v.Status == VacationRequestStatus.Pending || v.Status == VacationRequestStatus.Approved)
+                && v.StartDate <= endDate
+                && v.EndDate >= startDate,
+            ct);
     }
 
     public Task AddAsync(VacationRequest request, CancellationToken ct)

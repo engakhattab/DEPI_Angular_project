@@ -48,6 +48,12 @@ public class AuthService(
                 ServiceError.Validation("Invalid credentials.", "VALIDATION"));
         }
 
+        if (employee.IsDeleted || employee.Status == HR.Domain.Enums.EmployeeStatus.Terminated)
+        {
+            return Result<AuthenticatedEmployee>.Failure(
+                ServiceError.Unauthorized("This employee account is no longer allowed to sign in."));
+        }
+
         var valid = await _userManager.CheckPasswordAsync(user, password);
         if (!valid)
         {
@@ -81,6 +87,9 @@ public class AuthService(
             PhoneNumber = employee.PhoneNumber,
             Notes = employee.Notes,
             Status = employee.Status,
+            VacationBalanceDays = employee.VacationBalanceDays,
+            IsDeleted = employee.IsDeleted,
+            TerminatedAt = employee.TerminatedAt,
             IdentityUserId = user.Id,
             UserName = user.UserName ?? string.Empty
         };

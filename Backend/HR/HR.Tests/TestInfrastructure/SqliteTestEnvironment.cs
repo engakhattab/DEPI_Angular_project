@@ -38,13 +38,16 @@ public sealed class SqliteTestEnvironment : IAsyncDisposable
 
     public Department? DefaultDepartment { get; }
 
-    public static async Task<SqliteTestEnvironment> CreateAsync(bool seedDefaultDepartment = false)
+    public static async Task<SqliteTestEnvironment> CreateAsync(
+        bool seedDefaultDepartment = false,
+        TimeProvider? timeProvider = null)
     {
         var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
 
         var services = new ServiceCollection();
         services.AddLogging();
+        services.AddSingleton(timeProvider ?? TimeProvider.System);
         services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connection));
         services
             .AddIdentityCore<ApplicationUser>()
@@ -100,7 +103,10 @@ public sealed class SqliteTestEnvironment : IAsyncDisposable
         string email,
         Guid departmentId,
         Guid? managerId = null,
-        EmployeeStatus status = EmployeeStatus.Active)
+        EmployeeStatus status = EmployeeStatus.Active,
+        int vacationBalanceDays = 21,
+        bool isDeleted = false,
+        DateTimeOffset? terminatedAt = null)
     {
         var user = await AddUserAsync(email);
         var employee = new Employee
@@ -111,6 +117,9 @@ public sealed class SqliteTestEnvironment : IAsyncDisposable
             DepartmentId = departmentId,
             ManagerId = managerId,
             Status = status,
+            VacationBalanceDays = vacationBalanceDays,
+            IsDeleted = isDeleted,
+            TerminatedAt = terminatedAt,
             ApplicationUserId = user.Id
         };
 
@@ -125,7 +134,8 @@ public sealed class SqliteTestEnvironment : IAsyncDisposable
         DateTimeOffset createdAt,
         DateOnly? startDate = null,
         DateOnly? endDate = null,
-        string reason = "Test request")
+        string reason = "Test request",
+        int workingDayCount = 2)
     {
         var request = new VacationRequest
         {
@@ -134,6 +144,7 @@ public sealed class SqliteTestEnvironment : IAsyncDisposable
             EndDate = endDate ?? new DateOnly(2026, 6, 2),
             Reason = reason,
             Status = status,
+            WorkingDayCount = workingDayCount,
             CreatedAt = createdAt
         };
 
@@ -142,7 +153,10 @@ public sealed class SqliteTestEnvironment : IAsyncDisposable
         return request;
     }
 
-    public async Task<Trip> AddTripAsync(string referenceName, DateTimeOffset createdAt)
+    public async Task<Trip> AddTripAsync(
+        string referenceName,
+        DateTimeOffset createdAt,
+        Guid? requestedByEmployeeId = null)
     {
         var trip = new Trip
         {
@@ -153,7 +167,8 @@ public sealed class SqliteTestEnvironment : IAsyncDisposable
             TripDate = new DateOnly(2026, 6, 10),
             TripCode = $"TRIP-{Guid.NewGuid():N}"[..11].ToUpperInvariant(),
             RequestCode = $"REQ-{Guid.NewGuid():N}"[..10].ToUpperInvariant(),
-            CreatedAt = createdAt
+            CreatedAt = createdAt,
+            RequestedByEmployeeId = requestedByEmployeeId
         };
 
         Context.Trips.Add(trip);

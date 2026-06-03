@@ -16,7 +16,7 @@ public class DepartmentService(
 
     public async Task<PagedList<DepartmentResponse>> GetDepartmentsAsync(int page, int pageSize, CancellationToken ct)
     {
-        var pagedEntities = await _departmentRepository.GetPageAsync(page, pageSize, ct);
+        var pagedEntities = await _departmentRepository.GetPageWithEmployeeCountsAsync(page, pageSize, ct);
         var items = pagedEntities.Items.Select(MapToResponse).ToList();
 
         return new PagedList<DepartmentResponse>(items, pagedEntities.TotalCount, pagedEntities.Page, pagedEntities.PageSize);
@@ -24,7 +24,7 @@ public class DepartmentService(
 
     public async Task<DepartmentResponse?> GetDepartmentByIdAsync(Guid id, CancellationToken ct)
     {
-        var department = await _departmentRepository.GetByIdAsync(id, ct);
+        var department = await _departmentRepository.GetByIdWithEmployeeCountAsync(id, ct);
         return department is null ? null : MapToResponse(department);
     }
 
@@ -90,7 +90,8 @@ public class DepartmentService(
         return new DepartmentResponse
         {
             Id = department.Id,
-            Name = department.Name
+            Name = department.Name,
+            EmployeeCount = department.Employees.Count(employee => !employee.IsDeleted)
         };
     }
 }

@@ -18,6 +18,14 @@ public class VacationRequest
 
     public VacationRequestStatus Status { get; set; } = VacationRequestStatus.Pending;
 
+    public int WorkingDayCount { get; set; }
+
+    public Guid? ReviewedByEmployeeId { get; set; }
+
+    public Employee? ReviewedBy { get; set; }
+
+    public DateTimeOffset? ReviewedAt { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public DateTimeOffset? UpdatedAt { get; set; }

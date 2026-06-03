@@ -17,6 +17,9 @@ public interface IEmployeeRepository
     Task<Employee?> GetByApplicationUserIdWithDetailsAsync(string applicationUserId, CancellationToken ct);
     Task<Employee?> GetByEmployeeNumberWithDetailsAsync(string employeeNumber, CancellationToken ct);
     Task<IReadOnlyList<Employee>> GetDirectReportsAsync(Guid managerId, CancellationToken ct);
+    Task<bool> ExistsActiveWithEmailAsync(string email, Guid? excludingEmployeeId, CancellationToken ct);
+    Task<Guid?> GetManagerIdAsync(Guid employeeId, CancellationToken ct);
+    Task<bool> IsAuthenticationEligibleAsync(Guid employeeId, CancellationToken ct);
     Task<bool> ExistsAsync(Guid id, CancellationToken ct);
     Task<bool> ExistsByNumberAsync(string employeeNumber, CancellationToken ct);
     Task AddAsync(Employee employee, CancellationToken ct);

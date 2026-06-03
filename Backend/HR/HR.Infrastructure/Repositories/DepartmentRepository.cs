@@ -19,9 +19,27 @@ public class DepartmentRepository(ApplicationDbContext context) : IDepartmentRep
         return PagedQueryExecutor.ExecuteAsync(query, page, pageSize, ct);
     }
 
+    public Task<PagedList<Department>> GetPageWithEmployeeCountsAsync(int page, int pageSize, CancellationToken ct)
+    {
+        var query = _context.Departments
+            .AsNoTracking()
+            .Include(d => d.Employees.Where(employee => !employee.IsDeleted))
+            .OrderBy(d => d.Name);
+
+        return PagedQueryExecutor.ExecuteAsync(query, page, pageSize, ct);
+    }
+
     public Task<Department?> GetByIdAsync(Guid id, CancellationToken ct)
     {
         return _context.Departments.FirstOrDefaultAsync(d => d.Id == id, ct);
+    }
+
+    public Task<Department?> GetByIdWithEmployeeCountAsync(Guid id, CancellationToken ct)
+    {
+        return _context.Departments
+            .AsNoTracking()
+            .Include(d => d.Employees.Where(employee => !employee.IsDeleted))
+            .FirstOrDefaultAsync(d => d.Id == id, ct);
     }
 
     public Task<Department?> GetByIdWithEmployeesAsync(Guid id, CancellationToken ct)

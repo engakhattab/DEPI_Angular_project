@@ -49,6 +49,7 @@ public class ErrorResponseParityTests
 
         var conflict = Assert.IsType<ConflictObjectResult>(result.Result);
         using var payload = JsonDocument.Parse(JsonSerializer.Serialize(conflict.Value));
+        Assert.Equal(StatusCodes.Status409Conflict, conflict.StatusCode);
         Assert.Equal("CONFLICT", payload.RootElement.GetProperty("code").GetString());
         Assert.Equal("Department exists.", payload.RootElement.GetProperty("message").GetString());
     }
@@ -76,6 +77,49 @@ public class ErrorResponseParityTests
         using var payload = JsonDocument.Parse(JsonSerializer.Serialize(badRequest.Value));
         Assert.Equal("VALIDATION", payload.RootElement.GetProperty("code").GetString());
         Assert.Equal("Validation failed.", payload.RootElement.GetProperty("message").GetString());
+    }
+
+    [Fact]
+    public async Task UpdateEmployee_WhenBusinessRuleFails_ReturnsUnprocessableEntityPayload()
+    {
+        var controller = new EmployeesController(new StubEmployeeService
+        {
+            UpdateResult = Result<EmployeeResponse>.Failure(
+                ServiceError.BusinessRule("Business rule failed."))
+        });
+
+        var result = await controller.UpdateEmployee(
+            Guid.NewGuid(),
+            new EmployeeUpdateRequest
+            {
+                FullName = "User",
+                Email = "user@example.com",
+                DepartmentId = Guid.NewGuid()
+            },
+            CancellationToken.None);
+
+        var unprocessable = Assert.IsType<UnprocessableEntityObjectResult>(result.Result);
+        using var payload = JsonDocument.Parse(JsonSerializer.Serialize(unprocessable.Value));
+        Assert.Equal(StatusCodes.Status422UnprocessableEntity, unprocessable.StatusCode);
+        Assert.Equal("BUSINESS_RULE_VIOLATION", payload.RootElement.GetProperty("code").GetString());
+        Assert.Equal("Business rule failed.", payload.RootElement.GetProperty("message").GetString());
+    }
+
+    [Fact]
+    public async Task Login_WhenAccountIsRevoked_ReturnsUnauthorizedPayload()
+    {
+        var controller = new AuthController(new StubAuthService(Result<AuthenticatedEmployee>.Failure(
+            ServiceError.Unauthorized("This employee account is no longer allowed to sign in."))));
+
+        var result = await controller.Login(
+            new LoginRequest { Identifier = "employee@example.com", Password = "ValidPass1!" },
+            CancellationToken.None);
+
+        var unauthorized = Assert.IsType<UnauthorizedObjectResult>(result.Result);
+        using var payload = JsonDocument.Parse(JsonSerializer.Serialize(unauthorized.Value));
+        Assert.Equal(StatusCodes.Status401Unauthorized, unauthorized.StatusCode);
+        Assert.Equal("UNAUTHORIZED", payload.RootElement.GetProperty("code").GetString());
+        Assert.Equal("This employee account is no longer allowed to sign in.", payload.RootElement.GetProperty("message").GetString());
     }
 
     [Fact]

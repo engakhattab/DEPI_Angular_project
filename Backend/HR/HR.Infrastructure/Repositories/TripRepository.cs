@@ -13,7 +13,8 @@ public class TripRepository(ApplicationDbContext context) : ITripRepository
     public Task<PagedList<Trip>> GetPageAsync(int page, int pageSize, CancellationToken ct)
     {
         var query = _context.Trips
-            .AsNoTracking();
+            .AsNoTracking()
+            .Include(t => t.RequestedBy);
 
         return PagedQueryExecutor.ExecuteDescendingAsync(query, t => t.CreatedAt, _context.Database, page, pageSize, ct);
     }
@@ -22,6 +23,14 @@ public class TripRepository(ApplicationDbContext context) : ITripRepository
     {
         return _context.Trips
             .AsNoTracking()
+            .Include(t => t.RequestedBy)
+            .FirstOrDefaultAsync(t => t.Id == id, ct);
+    }
+
+    public Task<Trip?> GetTrackedByIdAsync(Guid id, CancellationToken ct)
+    {
+        return _context.Trips
+            .Include(t => t.RequestedBy)
             .FirstOrDefaultAsync(t => t.Id == id, ct);
     }
 

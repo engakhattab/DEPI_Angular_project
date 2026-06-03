@@ -3,8 +3,10 @@ using System.Text.Json.Serialization;
 using HR.Infrastructure.Data;
 using HR.Infrastructure.Identity;
 using HR.Infrastructure;
+using HR.Infrastructure.Auth;
 using HR.API.Middleware;
 using HR.Shared.Serialization;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -64,6 +66,15 @@ public class Program
                         code = "FORBIDDEN",
                         message = "You are not allowed to access this resource."
                     });
+                };
+                options.Events.OnValidatePrincipal = async context =>
+                {
+                    var validator = context.HttpContext.RequestServices.GetRequiredService<IEmployeeSessionValidator>();
+                    if (!await validator.IsValidAsync(context.Principal!, context.HttpContext.RequestAborted))
+                    {
+                        context.RejectPrincipal();
+                        await context.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+                    }
                 };
             });
 

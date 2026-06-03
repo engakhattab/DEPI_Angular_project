@@ -6,6 +6,10 @@ public class TripResponse
 {
     public Guid Id { get; set; }
 
+    public Guid? RequestedByEmployeeId { get; set; }
+
+    public string? RequestedByEmployeeName { get; set; }
+
     public string ReferenceName { get; set; } = string.Empty;
 
     public string Project { get; set; } = string.Empty;
@@ -27,6 +31,8 @@ public class TripResponse
         return new TripResponse
         {
             Id = trip.Id,
+            RequestedByEmployeeId = trip.RequestedByEmployeeId,
+            RequestedByEmployeeName = trip.RequestedBy?.FullName,
             ReferenceName = trip.ReferenceName,
             Project = trip.Project,
             Route = trip.Route,

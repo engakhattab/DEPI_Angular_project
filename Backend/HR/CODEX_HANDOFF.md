@@ -30,7 +30,7 @@ This project uses Spec Kit for phased development.
 * `AGENTS.md` points to the current relevant implementation plan.
 
 ## 5. Current Progress
-**Phases 0 through 4 out of 7 are complete. Phase 5 has not started.**
+**Phases 0 through 5 out of 7 are implemented. Phase 5 code changes are complete and automated validation is passing.**
 
 Completed phases:
 * Phase 0: Foundation & Project Restructure
@@ -39,9 +39,10 @@ Completed phases:
 * Phase 3: Service Layer Extraction
 * Phase 4: Repository Pattern & Entity Configurations
 
-Next phase:
+Current phase status:
 * Phase 5: HR Business Logic Improvements
-* Phase 5 must begin only after explicit user approval.
+* Implementation is in place with full automated build/test coverage passing.
+* Manual quickstart validation still requires a live SQL Server environment plus known employee credentials or seeded data.
 
 Compatibility decisions:
 * Use secure, HttpOnly cookie sessions; do not introduce JWT.
@@ -108,12 +109,27 @@ Final verification:
 Remaining warnings:
 * `git diff --check` reports only LF-to-CRLF conversion warnings.
 
-## 7. Remaining Phases
 ### Phase 5: HR Business Logic Improvements
-* **Status:** Not started
-* **Expected goal:** Add approved HR business rules such as vacation overlap checks, state transitions, soft deletion, and circular-manager rejection.
-* **Boundary:** Do not begin until the user explicitly approves Phase 5 specification work.
+* **Status:** Implemented in code; automated validation complete.
+* Activated vacation-request business rules: overlap rejection, working-day notice, working-day duration, balance checks, active-employee enforcement, same-status no-op review behavior, reviewer audit fields, and pending-only hard deletion.
+* Activated employee lifecycle rules: duplicate active-email rejection, circular-manager rejection, cross-department manager warning, immutable employee number, termination side effects, soft deletion, retained Identity linkage, and immediate auth/session revocation.
+* Activated trip rules: requester ownership, active requester enforcement, past-date rejection, Friday/Saturday rejection, and safe handling of historical null requester rows.
+* Activated department employee counts excluding soft-deleted employees while retaining terminated visible employees.
+* Added a Phase 5 EF migration plus snapshot update and preserved the migration strategy note for nullable historical trip requester rows.
 
+Phase 5 verification:
+* `dotnet restore .\HR.slnx`: passed.
+* `dotnet build .\HR.slnx -c Release`: passed with 0 warnings and 0 errors.
+* `dotnet test .\HR.slnx -c Release --no-build`: passed, 77/77 tests.
+* Static checks passed:
+  * no `ApplicationDbContext` references remain in `HR.Infrastructure/*Service.cs`
+  * no direct `AddScoped<>` registrations were added to `HR.API/Program.cs`
+  * `git diff --check` reports only LF-to-CRLF conversion warnings
+
+Manual validation note:
+* `dotnet run --project .\HR.API\HR.API.csproj --no-build` entered the normal server run loop during the session, but the full quickstart workflow was not completed because this environment did not provide seeded employee credentials or a dedicated isolated manual-regression dataset for the configured SQL Server instance.
+
+## 7. Remaining Phases
 ### Phase 6: DI Registration Cleanup
 * **Status:** Not started
 * **Expected goal:** Complete project-owned dependency-registration cleanup.
@@ -135,16 +151,16 @@ Remaining warnings:
 * Do not restart or redesign the project.
 * Read this handoff, the constitution, the master roadmap, and the relevant Spec Kit artifacts before beginning a new phase.
 * Do not skip phases.
-* Do not begin Phase 5 without explicit user approval.
 * Do not pull Phase 6 cleanup into Phase 5.
 * Update task status only after the corresponding work is actually verified.
 * Preserve public API behavior unless an approved specification explicitly permits a change.
 
 ## 10. Recommended Next Step
-1. Confirm Phase 4 is closed.
-2. Wait for explicit user approval before generating any Phase 5 artifact.
-3. When Phase 5 is approved, inspect the constitution, `PLAN.md`, and existing source structure before creating the Phase 5 specification.
+1. Perform the manual quickstart checks from `specs/005-hr-business-rules/quickstart.md` against an isolated SQL Server database with known employee credentials.
+2. Review the Phase 5 migration before applying it outside isolated environments.
+3. Begin Phase 6 only after Phase 5 manual signoff is complete.
 
 ## 11. Known Warnings
 * `git diff --check` currently reports LF-to-CRLF conversion warnings only.
 * Phase 4 intentionally preserved legacy-compatible error codes. Any error-code normalization requires a separate approved compatibility decision.
+* Phase 5 manual quickstart coverage still needs a live operator pass against the configured SQL Server environment.

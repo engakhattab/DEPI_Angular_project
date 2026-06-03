@@ -32,6 +32,9 @@ public class AuthControllerCompatibilityTests
             DepartmentId = Guid.NewGuid(),
             DepartmentName = "Engineering",
             Status = EmployeeStatus.Active,
+            VacationBalanceDays = 19,
+            IsDeleted = false,
+            TerminatedAt = null,
             IdentityUserId = "user-501",
             UserName = "compat@example.com"
         };
@@ -51,8 +54,18 @@ public class AuthControllerCompatibilityTests
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var payload = Assert.IsType<LoginResponse>(ok.Value);
+        Assert.NotNull(payload.Employee);
         Assert.Equal(employee.EmployeeNumber, payload.Employee.EmployeeNumber);
         Assert.Equal(employee.FullName, payload.Employee.FullName);
+        Assert.Equal(employee.Email, payload.Employee.Email);
+        Assert.Equal(employee.DepartmentId, payload.Employee.DepartmentId);
+        Assert.Equal(employee.DepartmentName, payload.Employee.DepartmentName);
+        Assert.Equal(employee.Status, payload.Employee.Status);
+        Assert.Equal(employee.VacationBalanceDays, payload.Employee.VacationBalanceDays);
+        Assert.Equal(employee.IsDeleted, payload.Employee.IsDeleted);
+        Assert.Equal(employee.TerminatedAt, payload.Employee.TerminatedAt);
+        Assert.Equal(employee.IdentityUserId, payload.Employee.IdentityUserId);
+        Assert.Equal(employee.UserName, payload.Employee.UserName);
         Assert.NotNull(authenticationService.SignedInPrincipal);
         Assert.Equal("user-501", authenticationService.SignedInPrincipal!.FindFirstValue(ClaimTypes.NameIdentifier));
         Assert.Equal(employee.Email, authenticationService.SignedInPrincipal.FindFirstValue(ClaimTypes.Email));

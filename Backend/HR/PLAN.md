@@ -686,21 +686,24 @@ protected override void OnModelCreating(ModelBuilder builder)
 
 ## Phase 5 — HR Business Logic Improvements
 
-**Goal:** Improve the correctness and realism of existing HR workflows. Add all the missing business rules that a practical HR system must enforce. All changes live inside the service layer.  
-**Risk:** Low–Medium — additive changes inside service layer, plus one migration for new fields.  
-**Effort:** Medium  
-**Prerequisite:** Phase 3
+**Goal:** Improve the correctness and realism of existing HR workflows. Add all the missing business rules that a practical HR system must enforce. Changes build on the Phase 4 repository/entity-configuration refactor and should not be implemented against the old direct-`ApplicationDbContext` service structure.
+**Risk:** Low–Medium — additive business-rule changes through services/repositories, plus one migration for new fields.
+**Effort:** Medium
+**Prerequisite:** Phase 4
+
+> Phase 5 dependency clarification: Phase 5 now depends on completed Phase 4 repository and entity-configuration work. Implement Phase 5 through the repository and unit-of-work boundaries introduced in Phase 4, not by reintroducing direct `ApplicationDbContext` service access.
 
 ### 5a — Vacation Overlap Validation
 
 Before creating a vacation request, reject it if the employee already has a pending or approved request that overlaps the requested date range.
 
 ```csharp
-var overlaps = await _context.VacationRequests.AnyAsync(v =>
-    v.EmployeeId == request.EmployeeId
-    && v.Status != VacationRequestStatus.Rejected
-    && v.StartDate <= request.EndDate
-    && v.EndDate >= request.StartDate, ct);
+var overlaps = await _vacationRequestRepository
+    .HasOverlappingPendingOrApprovedAsync(
+        request.EmployeeId,
+        request.StartDate,
+        request.EndDate,
+        ct);
 
 if (overlaps)
     return Result<VacationRequestResponse>.Failure(
@@ -769,7 +772,7 @@ vacationRequest.UpdatedAt = DateTimeOffset.UtcNow;
 
 ### 5f — Vacation Status Transition Rules
 
-Only certain status transitions are valid. A request that is already Approved or Rejected cannot be re-approved or changed to Pending. Enforce a state machine:
+Only certain status transitions are valid. Same-status requests are idempotent no-op successes: they do not update reviewer fields, timestamps, or balances again. Different-status changes must follow the state machine:
 
 | From | Allowed To |
 |------|-----------|
@@ -850,11 +853,15 @@ Require at least 3 working days advance notice for vacation requests (configurab
 
 ```csharp
 var minNoticeDays = 3;
-var earliestAllowed = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(minNoticeDays);
-if (request.StartDate < earliestAllowed)
+var today = DateOnly.FromDateTime(DateTime.UtcNow);
+var noticeDays = _workingDayCalendar.CountFullWorkingDaysBetween(
+    today,
+    request.StartDate);
+
+if (noticeDays < minNoticeDays)
     return Result<VacationRequestResponse>.Failure(
         ServiceError.BusinessRule(
-            $"Vacation requests must be submitted at least {minNoticeDays} days in advance."));
+            $"Vacation requests must be submitted at least {minNoticeDays} working days in advance."));
 ```
 
 ### 5j — Employee Status Transition Rules
@@ -884,14 +891,15 @@ if (employee.Status != request.Status
 
 ### 5k — Auto-Cancel Pending Vacations on Termination
 
+Same-status requests return success without updating `TerminatedAt`, rejecting pending vacations again, revoking access again, or mutating timestamps solely because the requested status already matches the current status.
+
 When an employee is terminated, automatically reject all their pending vacation requests.
 
 ```csharp
 if (request.Status == EmployeeStatus.Terminated)
 {
-    var pendingVacations = await _context.VacationRequests
-        .Where(v => v.EmployeeId == id && v.Status == VacationRequestStatus.Pending)
-        .ToListAsync(ct);
+    var pendingVacations = await _vacationRequestRepository
+        .GetPendingByEmployeeIdAsync(id, ct);
 
     foreach (var v in pendingVacations)
     {
@@ -946,28 +954,30 @@ if (manager.DepartmentId != request.DepartmentId)
 Prevent two active employees from sharing the same email address.
 
 ```csharp
-if (await _context.Employees.AnyAsync(e =>
-    e.Id != id
-    && e.Email == request.Email
-    && !e.IsDeleted, ct))
+if (await _employeeRepository.ExistsActiveWithEmailAsync(
+        request.Email,
+        excludeEmployeeId: id,
+        ct))
     return Result<EmployeeResponse>.Failure(
         ServiceError.Conflict("An active employee with this email already exists."));
 ```
 
 ### 5p — Trip-Employee Relationship
 
-Currently `Trip` has no link to employees. Add `RequestedByEmployeeId` so trips are traceable. Requires a new migration.
+Currently `Trip` has no link to employees. Add `RequestedByEmployeeId` so new trips are traceable, while existing rows may retain a null requester when no reliable historical requester source exists. Requires a migration strategy and one new migration. Do not invent fake requester data for existing trips; any later non-null database constraint requires a separate approved migration after reliable backfill is possible.
 
 ```csharp
 // Trip.cs — new fields
-public Guid RequestedByEmployeeId { get; set; }
+public Guid? RequestedByEmployeeId { get; set; }
 public Employee? RequestedBy { get; set; }
 
 // TripCreateRequest.cs — add
 public Guid RequestedByEmployeeId { get; set; }
 
 // In TripService.CreateAsync — validate
-var employee = await _context.Employees.FindAsync(request.RequestedByEmployeeId, ct);
+var employee = await _employeeRepository.GetByIdAsync(
+    request.RequestedByEmployeeId,
+    ct);
 if (employee is null)
     return Result<TripResponse>.Failure(ServiceError.NotFound("Employee not found."));
 if (employee.Status != EmployeeStatus.Active)
@@ -994,16 +1004,15 @@ Return the employee count in each `DepartmentResponse` so the frontend can displ
 public int EmployeeCount { get; set; }
 
 // In DepartmentService.GetAllAsync
-var departments = await _context.Departments
-    .AsNoTracking()
-    .Select(d => new DepartmentResponse
-    {
-        Id = d.Id,
-        Name = d.Name,
-        EmployeeCount = d.Employees.Count(e => !e.IsDeleted)
-    })
-    .OrderBy(d => d.Name)
-    .ToListAsync(ct);
+var departments = await _departmentRepository
+    .GetPageWithEmployeeCountsAsync(page, pageSize, ct);
+
+return departments.Map(d => new DepartmentResponse
+{
+    Id = d.Id,
+    Name = d.Name,
+    EmployeeCount = d.EmployeeCount
+});
 ```
 
 ### Done Criteria
@@ -1259,7 +1268,7 @@ public class AuditLog
 | 2 | Session-based authentication & authorization | Medium | Medium | Phase 1 |
 | 3 | Service layer extraction | High | High | Phase 2 |
 | 4 | Repository pattern + entity configurations | Low | Medium | Phase 3 |
-| 5 | HR business logic improvements | Low–Medium | Medium | Phase 3 |
+| 5 | HR business logic improvements | Low–Medium | Medium | Phase 4 |
 | 6 | DI registration cleanup | Low | Low | Phase 4 |
 | 7 | Advanced HR features (attendance, RBAC, salary, docs, dashboard, audit) | Medium | High | Phase 5 + 6 |
 

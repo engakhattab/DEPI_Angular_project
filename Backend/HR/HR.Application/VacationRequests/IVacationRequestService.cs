@@ -16,6 +16,10 @@ public interface IVacationRequestService
 
     Task<VacationRequestResponse?> GetVacationRequestByIdAsync(Guid id, CancellationToken ct);
     Task<Result<VacationRequestResponse>> CreateVacationRequestAsync(VacationRequestCreateRequest request, CancellationToken ct);
-    Task<Result<VacationRequestResponse>> UpdateVacationStatusAsync(Guid id, VacationRequestStatusUpdateRequest request, CancellationToken ct);
+    Task<Result<VacationRequestResponse>> UpdateVacationStatusAsync(
+        Guid id,
+        Guid reviewerEmployeeId,
+        VacationRequestStatusUpdateRequest request,
+        CancellationToken ct);
     Task<Result> DeleteVacationRequestAsync(Guid id, CancellationToken ct);
 }

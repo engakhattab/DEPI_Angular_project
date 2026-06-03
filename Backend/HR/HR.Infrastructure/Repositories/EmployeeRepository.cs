@@ -21,6 +21,7 @@ public class EmployeeRepository(ApplicationDbContext context) : IEmployeeReposit
             .AsNoTracking()
             .Include(e => e.Department)
             .Include(e => e.Manager)
+            .Where(e => !e.IsDeleted)
             .OrderBy(e => e.EmployeeNumber);
 
         if (status.HasValue)
@@ -42,7 +43,7 @@ public class EmployeeRepository(ApplicationDbContext context) : IEmployeeReposit
             .AsNoTracking()
             .Include(e => e.Department)
             .Include(e => e.Manager)
-            .FirstOrDefaultAsync(e => e.Id == id, ct);
+            .FirstOrDefaultAsync(e => e.Id == id && !e.IsDeleted, ct);
     }
 
     public Task<Employee?> GetByApplicationUserIdWithDetailsAsync(string applicationUserId, CancellationToken ct)
@@ -68,6 +69,36 @@ public class EmployeeRepository(ApplicationDbContext context) : IEmployeeReposit
         return await _context.Employees
             .Where(e => e.ManagerId == managerId)
             .ToListAsync(ct);
+    }
+
+    public Task<bool> ExistsActiveWithEmailAsync(string email, Guid? excludingEmployeeId, CancellationToken ct)
+    {
+        var normalizedEmail = email.Trim().ToUpperInvariant();
+
+        return _context.Employees.AnyAsync(
+            e => e.Email != null
+                && e.Email.ToUpper() == normalizedEmail
+                && e.Status == EmployeeStatus.Active
+                && !e.IsDeleted
+                && (!excludingEmployeeId.HasValue || e.Id != excludingEmployeeId.Value),
+            ct);
+    }
+
+    public Task<Guid?> GetManagerIdAsync(Guid employeeId, CancellationToken ct)
+    {
+        return _context.Employees
+            .Where(e => e.Id == employeeId)
+            .Select(e => e.ManagerId)
+            .FirstOrDefaultAsync(ct);
+    }
+
+    public Task<bool> IsAuthenticationEligibleAsync(Guid employeeId, CancellationToken ct)
+    {
+        return _context.Employees.AnyAsync(
+            e => e.Id == employeeId
+                && !e.IsDeleted
+                && e.Status != EmployeeStatus.Terminated,
+            ct);
     }
 
     public Task<bool> ExistsAsync(Guid id, CancellationToken ct)
