@@ -1,15 +1,12 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using HR.Infrastructure.Data;
-using HR.Infrastructure.Identity;
+using HR.Application;
 using HR.Infrastructure;
 using HR.Infrastructure.Auth;
 using HR.API.Middleware;
 using HR.Shared.Serialization;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc.Authorization;
 
 namespace HR.API;
@@ -20,24 +17,8 @@ public class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
-        var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
-
-        builder.Services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseSqlServer(connectionString));
-
-        builder.Services
-            .AddIdentityCore<ApplicationUser>(options =>
-            {
-                options.Password.RequiredLength = 8;
-                options.Password.RequireDigit = true;
-                options.Password.RequireUppercase = true;
-                options.Password.RequireLowercase = true;
-                options.Password.RequireNonAlphanumeric = false;
-            })
-            .AddRoles<IdentityRole>()
-            .AddEntityFrameworkStores<ApplicationDbContext>();
-
+        builder.Services.AddApplication();
+        builder.Services.AddInfrastructure(builder.Configuration);
         builder.Services
             .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
             .AddCookie(options =>
@@ -79,7 +60,6 @@ public class Program
             });
 
         builder.Services.AddAuthorization();
-        builder.Services.AddInfrastructure();
 
         builder.Services.AddControllers(options =>
             {

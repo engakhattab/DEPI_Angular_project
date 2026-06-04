@@ -6,7 +6,9 @@ using HR.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace HR.Tests.TestInfrastructure;
 
@@ -48,12 +50,9 @@ public sealed class SqliteTestEnvironment : IAsyncDisposable
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(timeProvider ?? TimeProvider.System);
+        services.AddInfrastructure(CreateTestConfiguration());
+        services.RemoveAll<DbContextOptions<ApplicationDbContext>>();
         services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connection));
-        services
-            .AddIdentityCore<ApplicationUser>()
-            .AddRoles<IdentityRole>()
-            .AddEntityFrameworkStores<ApplicationDbContext>();
-        services.AddInfrastructure();
 
         var provider = services.BuildServiceProvider();
         var scope = provider.CreateScope();
@@ -181,5 +180,15 @@ public sealed class SqliteTestEnvironment : IAsyncDisposable
         _scope.Dispose();
         await _provider.DisposeAsync();
         await _connection.DisposeAsync();
+    }
+
+    private static IConfiguration CreateTestConfiguration()
+    {
+        return new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:DefaultConnection"] = "Server=(localdb)\\mssqllocaldb;Database=HR.Tests;Trusted_Connection=True;"
+            })
+            .Build();
     }
 }

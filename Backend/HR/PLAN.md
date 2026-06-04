@@ -43,16 +43,20 @@ This document defines a phased refactor plan that transforms the project into a 
 **Pattern:** Layered Architecture (4 projects + 1 shared kernel)
 
 ```
-Dependency direction: HR.API → HR.Application → HR.Infrastructure → HR.Domain
-                                                                  ↑
-                                                             HR.Shared (all layers)
+Dependency direction:
+HR.API -> HR.Application
+HR.API -> HR.Infrastructure
+HR.Infrastructure -> HR.Application
+HR.Application -> HR.Domain
+HR.Infrastructure -> HR.Domain
+HR.Shared is referenced by all layers
 ```
 
 ### Projects
 
 | Project | Responsibility | May reference |
 |---------|---------------|---------------|
-| `HR.API` | HTTP only — controllers, middleware, DI wiring, `Program.cs` | Application, Shared |
+| `HR.API` | HTTP only — controllers, middleware, DI wiring, `Program.cs` | Application, Infrastructure, Shared (composition only) |
 | `HR.Application` | Business logic — services, interfaces, DTOs, validators | Domain, Shared |
 | `HR.Infrastructure` | Data access — EF Core, repositories, Identity, migrations | Domain, Shared |
 | `HR.Domain` | Core entities, enums, domain exceptions — **zero external dependencies** | Shared |
@@ -1037,28 +1041,23 @@ return departments.Map(d => new DepartmentResponse
 **Goal:** Centralize dependency injection registration so `Program.cs` is readable and each project manages its own registrations.  
 **Risk:** Low — wiring only.  
 **Effort:** Low  
-**Prerequisite:** Phase 4
+**Prerequisite:** Phase 5 implementation and migration readiness
 
 ### Tasks
 
-1. Create `DependencyInjection.cs` in `HR.Application`:
+1. Create `DependencyInjection.cs` in `HR.Application` as the application-owned registration entry point. It should expose `AddApplication()` even if the current application layer has no concrete service implementations to register.
 
 ```csharp
 public static class DependencyInjection
 {
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
-        services.AddScoped<IEmployeeService, EmployeeService>();
-        services.AddScoped<IDepartmentService, DepartmentService>();
-        services.AddScoped<IVacationService, VacationService>();
-        services.AddScoped<ITripService, TripService>();
-        services.AddScoped<IAuthService, AuthService>();
         return services;
     }
 }
 ```
 
-2. Create `DependencyInjection.cs` in `HR.Infrastructure`:
+2. Update `DependencyInjection.cs` in `HR.Infrastructure` so infrastructure owns EF Core, Identity store integration, repositories, time/rule helpers, unit-of-work boundaries, and infrastructure-backed implementations of application service contracts:
 
 ```csharp
 public static class DependencyInjection
@@ -1066,13 +1065,26 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection services, IConfiguration config)
     {
+        var connectionString = config.GetConnectionString("DefaultConnection")
+            ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+
         services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseSqlServer(config.GetConnectionString("DefaultConnection")));
+            options.UseSqlServer(connectionString));
+
+        services
+            .AddIdentityCore<ApplicationUser>(options => { /* preserve existing options */ })
+            .AddRoles<IdentityRole>()
+            .AddEntityFrameworkStores<ApplicationDbContext>();
 
         services.AddScoped<IEmployeeRepository, EmployeeRepository>();
         services.AddScoped<IDepartmentRepository, DepartmentRepository>();
-        services.AddScoped<IVacationRepository, VacationRepository>();
+        services.AddScoped<IVacationRequestRepository, VacationRequestRepository>();
         services.AddScoped<ITripRepository, TripRepository>();
+        services.AddScoped<IEmployeeService, EmployeeService>();
+        services.AddScoped<IDepartmentService, DepartmentService>();
+        services.AddScoped<IVacationRequestService, VacationRequestService>();
+        services.AddScoped<ITripService, TripService>();
+        services.AddScoped<IAuthService, AuthService>();
 
         return services;
     }
@@ -1089,7 +1101,11 @@ builder.Services.AddInfrastructure(builder.Configuration);
 ### Done Criteria
 
 - `Program.cs` contains no direct `services.AddScoped<>` calls for application or infrastructure services.
-- Each project fully owns its own DI registration.
+- `Program.cs` delegates to `AddApplication()` and `AddInfrastructure(builder.Configuration)`.
+- `Program.cs` keeps host-owned authentication cookie events, authorization, controller serialization, CORS, Swagger, and middleware ordering.
+- `HR.Application` owns the application registration entry point without referencing `HR.Infrastructure`.
+- `HR.Infrastructure` owns infrastructure-backed service implementation registrations.
+- No Phase 6 migrations or schema changes are created.
 
 ---
 
@@ -1269,7 +1285,7 @@ public class AuditLog
 | 3 | Service layer extraction | High | High | Phase 2 |
 | 4 | Repository pattern + entity configurations | Low | Medium | Phase 3 |
 | 5 | HR business logic improvements | Low–Medium | Medium | Phase 4 |
-| 6 | DI registration cleanup | Low | Low | Phase 4 |
+| 6 | DI registration cleanup | Low | Low | Phase 5 implementation and migration readiness |
 | 7 | Advanced HR features (attendance, RBAC, salary, docs, dashboard, audit) | Medium | High | Phase 5 + 6 |
 
 **Implementation order is mandatory.** Do not start Phase 3 until Phase 2 is complete — services need to read the authenticated user's identity from session claims. Do not skip Phase 1 — global error handling makes debugging all subsequent phases significantly easier. Phase 7 is optional but highly recommended for a production-ready HR system.
