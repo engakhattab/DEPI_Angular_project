@@ -2,6 +2,7 @@ using HR.Application.DTOs.Employees;
 using HR.Application.Employees;
 using HR.Domain.Entities;
 using HR.Domain.Enums;
+using HR.Infrastructure.Audit;
 using HR.Infrastructure.Identity;
 using HR.Infrastructure.Repositories;
 using HR.Shared.Pagination;
@@ -19,7 +20,8 @@ public class EmployeeService(
     IUnitOfWork unitOfWork,
     UserManager<ApplicationUser> userManager,
     ILogger<EmployeeService> logger,
-    TimeProvider timeProvider) : IEmployeeService
+    TimeProvider timeProvider,
+    IAuditWriter? auditWriter = null) : IEmployeeService
 {
     private readonly IEmployeeRepository _employeeRepository = employeeRepository;
     private readonly IDepartmentRepository _departmentRepository = departmentRepository;
@@ -29,6 +31,7 @@ public class EmployeeService(
     private readonly UserManager<ApplicationUser> _userManager = userManager;
     private readonly ILogger<EmployeeService> _logger = logger;
     private readonly TimeProvider _timeProvider = timeProvider;
+    private readonly IAuditWriter? _auditWriter = auditWriter;
 
     public async Task<PagedList<EmployeeResponse>> GetEmployeesAsync(
         EmployeeStatus? status,
@@ -282,6 +285,66 @@ public class EmployeeService(
         return Result<EmployeeResponse>.Success(MapToResponse(employee, user));
     }
 
+    public async Task<Result<EmployeeRoleResponse>> UpdateRoleAsync(
+        Guid requesterEmployeeId,
+        Guid id,
+        EmployeeRoleUpdateRequest request,
+        CancellationToken ct)
+    {
+        var requester = await _employeeRepository.GetByIdAsync(requesterEmployeeId, ct);
+        if (requester is null || requester.IsDeleted || requester.Status == EmployeeStatus.Terminated || requester.Role != EmployeeRole.SystemAdministrator)
+        {
+            return Result<EmployeeRoleResponse>.Failure(ServiceError.Forbidden());
+        }
+
+        var employee = await _employeeRepository.GetByIdAsync(id, ct);
+        if (employee is null || employee.IsDeleted)
+        {
+            return Result<EmployeeRoleResponse>.Failure(ServiceError.NotFound($"Employee '{id}' was not found.", "NOT_FOUND"));
+        }
+
+        if (employee.Status == EmployeeStatus.Terminated)
+        {
+            return Result<EmployeeRoleResponse>.Failure(ServiceError.BusinessRule("Terminated employees cannot be assigned roles."));
+        }
+
+        var now = _timeProvider.GetUtcNow();
+        var previous = employee.Role;
+        if (previous == request.Role)
+        {
+            return Result<EmployeeRoleResponse>.Success(new EmployeeRoleResponse
+            {
+                EmployeeId = employee.Id,
+                Role = employee.Role,
+                UpdatedAt = now
+            });
+        }
+
+        employee.Role = request.Role;
+        if (_auditWriter is not null)
+        {
+            await _auditWriter.WriteAsync(
+                "Employee",
+                employee.Id,
+                AuditActionType.RoleChanged,
+                requesterEmployeeId,
+                null,
+                ["Role"],
+                new { role = previous.ToString() },
+                new { role = request.Role.ToString() },
+                null,
+                ct);
+        }
+
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<EmployeeRoleResponse>.Success(new EmployeeRoleResponse
+        {
+            EmployeeId = employee.Id,
+            Role = employee.Role,
+            UpdatedAt = now
+        });
+    }
+
     public async Task<Result> DeleteEmployeeAsync(Guid id, CancellationToken ct)
     {
         var employee = await _employeeRepository.GetByIdAsync(id, ct);
@@ -337,6 +400,7 @@ public class EmployeeService(
             PhoneNumber = employee.PhoneNumber,
             Notes = employee.Notes,
             Status = employee.Status,
+            Role = employee.Role,
             VacationBalanceDays = employee.VacationBalanceDays,
             IsDeleted = employee.IsDeleted,
             TerminatedAt = employee.TerminatedAt,

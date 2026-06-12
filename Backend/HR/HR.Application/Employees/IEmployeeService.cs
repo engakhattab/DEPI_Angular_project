@@ -11,5 +11,6 @@ public interface IEmployeeService
     Task<EmployeeResponse?> GetEmployeeByIdAsync(Guid id, CancellationToken ct);
     Task<Result<EmployeeCreatedResponse>> CreateEmployeeAsync(EmployeeCreateRequest request, CancellationToken ct);
     Task<Result<EmployeeResponse>> UpdateEmployeeAsync(Guid id, EmployeeUpdateRequest request, CancellationToken ct);
+    Task<Result<EmployeeRoleResponse>> UpdateRoleAsync(Guid requesterEmployeeId, Guid id, EmployeeRoleUpdateRequest request, CancellationToken ct);
     Task<Result> DeleteEmployeeAsync(Guid id, CancellationToken ct);
 }

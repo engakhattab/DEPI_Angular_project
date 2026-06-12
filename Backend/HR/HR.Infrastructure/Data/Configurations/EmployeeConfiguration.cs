@@ -33,6 +33,12 @@ public class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
             .HasConversion<string>()
             .HasMaxLength(32);
 
+        entity.Property(e => e.Role)
+            .HasConversion<string>()
+            .HasMaxLength(32)
+            .HasDefaultValue(HR.Domain.Enums.EmployeeRole.Employee)
+            .IsRequired();
+
         entity.Property(e => e.VacationBalanceDays)
             .HasDefaultValue(21)
             .IsRequired();

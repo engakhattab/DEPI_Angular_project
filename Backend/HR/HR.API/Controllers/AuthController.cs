@@ -51,7 +51,9 @@ public class AuthController(IAuthService authService) : ControllerBase
             new(ClaimTypes.Email, result.Value.UserEmail ?? string.Empty),
             new("employee_id", employee.Id.ToString()),
             new("employee_number", employee.EmployeeNumber),
-            new("full_name", employee.FullName)
+            new("full_name", employee.FullName),
+            new(ClaimTypes.Role, employee.Role.ToString()),
+            new("employee_role", employee.Role.ToString())
         };
 
         var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
@@ -87,7 +89,10 @@ public class AuthController(IAuthService authService) : ControllerBase
         {
             EmployeeId = employeeId,
             FullName = User.FindFirstValue("full_name") ?? string.Empty,
-            Email = User.FindFirstValue(ClaimTypes.Email) ?? string.Empty
+            Email = User.FindFirstValue(ClaimTypes.Email) ?? string.Empty,
+            Role = Enum.TryParse<HR.Domain.Enums.EmployeeRole>(User.FindFirstValue("employee_role"), out var role)
+                ? role
+                : HR.Domain.Enums.EmployeeRole.Employee
         });
     }
 }

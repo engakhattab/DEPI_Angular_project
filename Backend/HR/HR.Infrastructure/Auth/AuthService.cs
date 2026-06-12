@@ -87,6 +87,7 @@ public class AuthService(
             PhoneNumber = employee.PhoneNumber,
             Notes = employee.Notes,
             Status = employee.Status,
+            Role = employee.Role,
             VacationBalanceDays = employee.VacationBalanceDays,
             IsDeleted = employee.IsDeleted,
             TerminatedAt = employee.TerminatedAt,

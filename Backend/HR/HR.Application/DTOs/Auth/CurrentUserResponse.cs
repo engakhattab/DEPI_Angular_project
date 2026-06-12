@@ -7,4 +7,6 @@ public class CurrentUserResponse
     public string FullName { get; set; } = string.Empty;
 
     public string Email { get; set; } = string.Empty;
+
+    public HR.Domain.Enums.EmployeeRole Role { get; set; } = HR.Domain.Enums.EmployeeRole.Employee;
 }

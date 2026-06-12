@@ -194,6 +194,9 @@ public class ErrorResponseParityTests
         public Task<Result<EmployeeResponse>> UpdateEmployeeAsync(Guid id, EmployeeUpdateRequest request, CancellationToken ct)
             => Task.FromResult(UpdateResult ?? throw new NotSupportedException());
 
+        public Task<Result<EmployeeRoleResponse>> UpdateRoleAsync(Guid requesterEmployeeId, Guid id, EmployeeRoleUpdateRequest request, CancellationToken ct)
+            => throw new NotSupportedException();
+
         public Task<Result> DeleteEmployeeAsync(Guid id, CancellationToken ct)
             => throw new NotSupportedException();
     }

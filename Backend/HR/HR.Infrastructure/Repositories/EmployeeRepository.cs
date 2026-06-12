@@ -64,11 +64,72 @@ public class EmployeeRepository(ApplicationDbContext context) : IEmployeeReposit
             .FirstOrDefaultAsync(e => e.EmployeeNumber == employeeNumber, ct);
     }
 
+    public async Task<IReadOnlyList<Employee>> FindByEmailOrEmployeeNumberAsync(string identifier, CancellationToken ct)
+    {
+        var normalized = identifier.Trim().ToUpperInvariant();
+        return await _context.Employees
+            .Where(e => e.EmployeeNumber.ToUpper() == normalized
+                || (e.Email != null && e.Email.ToUpper() == normalized))
+            .ToListAsync(ct);
+    }
+
     public async Task<IReadOnlyList<Employee>> GetDirectReportsAsync(Guid managerId, CancellationToken ct)
     {
         return await _context.Employees
             .Where(e => e.ManagerId == managerId)
             .ToListAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<Employee>> GetAllActiveAsync(CancellationToken ct)
+    {
+        return await _context.Employees
+            .AsNoTracking()
+            .Where(e => !e.IsDeleted && e.Status == EmployeeStatus.Active)
+            .ToListAsync(ct);
+    }
+
+    public async Task<IReadOnlySet<Guid>> GetDirectAndIndirectReportIdsAsync(Guid managerId, CancellationToken ct)
+    {
+        var employees = await _context.Employees
+            .AsNoTracking()
+            .Where(e => !e.IsDeleted && e.Status == EmployeeStatus.Active)
+            .Select(e => new { e.Id, e.ManagerId })
+            .ToListAsync(ct);
+
+        var result = new HashSet<Guid>();
+        var frontier = employees.Where(e => e.ManagerId == managerId).Select(e => e.Id).ToList();
+
+        while (frontier.Count > 0)
+        {
+            var current = frontier[^1];
+            frontier.RemoveAt(frontier.Count - 1);
+            if (!result.Add(current))
+            {
+                continue;
+            }
+
+            frontier.AddRange(employees.Where(e => e.ManagerId == current).Select(e => e.Id));
+        }
+
+        return result;
+    }
+
+    public Task<bool> AnyActiveSystemAdministratorAsync(CancellationToken ct)
+    {
+        return _context.Employees.AnyAsync(
+            e => !e.IsDeleted
+                && e.Status == EmployeeStatus.Active
+                && e.Role == EmployeeRole.SystemAdministrator,
+            ct);
+    }
+
+    public Task<bool> ExistsWithEmailAsync(string email, CancellationToken ct)
+    {
+        var normalizedEmail = email.Trim().ToUpperInvariant();
+
+        return _context.Employees.AnyAsync(
+            e => e.Email != null && e.Email.ToUpper() == normalizedEmail,
+            ct);
     }
 
     public Task<bool> ExistsActiveWithEmailAsync(string email, Guid? excludingEmployeeId, CancellationToken ct)

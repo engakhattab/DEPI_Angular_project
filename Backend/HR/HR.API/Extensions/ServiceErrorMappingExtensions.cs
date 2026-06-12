@@ -15,6 +15,7 @@ public static class ServiceErrorMappingExtensions
 
         return error.Type switch
         {
+            _ when error.Code == "PAYLOAD_TOO_LARGE" => controller.StatusCode(StatusCodes.Status413PayloadTooLarge, payload),
             ServiceError.ErrorType.NotFound => controller.NotFound(payload),
             ServiceError.ErrorType.Conflict => controller.Conflict(payload),
             ServiceError.ErrorType.Validation => controller.BadRequest(payload),

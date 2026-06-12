@@ -89,4 +89,26 @@ public class EmployeesController(IEmployeeService employeeService) : ControllerB
 
         return NoContent();
     }
+
+    [HttpPut("{id:guid}/role")]
+    [Authorize(Policy = "SystemAdministrator")]
+    public async Task<ActionResult<EmployeeRoleResponse>> UpdateRole(
+        Guid id,
+        [FromBody] EmployeeRoleUpdateRequest request,
+        CancellationToken cancellationToken)
+    {
+        var requesterId = User.GetEmployeeId();
+        if (!requesterId.HasValue)
+        {
+            return Unauthorized(new { code = "UNAUTHORIZED", message = "Invalid session." });
+        }
+
+        var result = await _employeeService.UpdateRoleAsync(requesterId.Value, id, request, cancellationToken);
+        if (!result.IsSuccess)
+        {
+            return this.ToActionResult(result.Error!);
+        }
+
+        return Ok(result.Value);
+    }
 }

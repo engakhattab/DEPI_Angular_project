@@ -32,6 +32,8 @@ public class EmployeeResponse
 
     public EmployeeStatus Status { get; set; } = EmployeeStatus.Active;
 
+    public EmployeeRole Role { get; set; } = EmployeeRole.Employee;
+
     public int VacationBalanceDays { get; set; } = 21;
 
     public bool IsDeleted { get; set; }

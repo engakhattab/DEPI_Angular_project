@@ -105,7 +105,8 @@ public sealed class SqliteTestEnvironment : IAsyncDisposable
         EmployeeStatus status = EmployeeStatus.Active,
         int vacationBalanceDays = 21,
         bool isDeleted = false,
-        DateTimeOffset? terminatedAt = null)
+        DateTimeOffset? terminatedAt = null,
+        EmployeeRole role = EmployeeRole.Employee)
     {
         var user = await AddUserAsync(email);
         var employee = new Employee
@@ -116,6 +117,7 @@ public sealed class SqliteTestEnvironment : IAsyncDisposable
             DepartmentId = departmentId,
             ManagerId = managerId,
             Status = status,
+            Role = role,
             VacationBalanceDays = vacationBalanceDays,
             IsDeleted = isDeleted,
             TerminatedAt = terminatedAt,
@@ -187,7 +189,19 @@ public sealed class SqliteTestEnvironment : IAsyncDisposable
         return new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["ConnectionStrings:DefaultConnection"] = "Server=(localdb)\\mssqllocaldb;Database=HR.Tests;Trusted_Connection=True;"
+                ["ConnectionStrings:DefaultConnection"] = "Server=(localdb)\\mssqllocaldb;Database=HR.Tests;Trusted_Connection=True;",
+                ["BusinessSettings:TimeZoneId"] = "Africa/Cairo",
+                ["InitialAdminBootstrap:Enabled"] = "false",
+                ["InitialAdminBootstrap:Mode"] = "CreateInitialAdmin",
+                ["InitialAdminBootstrap:ForcePasswordChange"] = "true",
+                ["DocumentStorage:RootPath"] = "App_Data/EmployeeDocuments",
+                ["DocumentStorage:AllowedExtensions:0"] = ".pdf",
+                ["DocumentStorage:AllowedExtensions:1"] = ".jpg",
+                ["DocumentStorage:AllowedExtensions:2"] = ".jpeg",
+                ["DocumentStorage:AllowedExtensions:3"] = ".png",
+                ["DocumentStorage:AllowedExtensions:4"] = ".doc",
+                ["DocumentStorage:AllowedExtensions:5"] = ".docx",
+                ["DocumentStorage:MaxFileSizeBytes"] = "10485760"
             })
             .Build();
     }

@@ -114,7 +114,22 @@ public class AuthServiceTests
         public Task<Employee?> GetByEmployeeNumberWithDetailsAsync(string employeeNumber, CancellationToken ct)
             => Task.FromResult(EmployeeNumberEmployee);
 
+        public Task<IReadOnlyList<Employee>> FindByEmailOrEmployeeNumberAsync(string identifier, CancellationToken ct)
+            => throw new NotSupportedException();
+
         public Task<IReadOnlyList<Employee>> GetDirectReportsAsync(Guid managerId, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<Employee>> GetAllActiveAsync(CancellationToken ct)
+            => throw new NotSupportedException();
+
+        public Task<IReadOnlySet<Guid>> GetDirectAndIndirectReportIdsAsync(Guid managerId, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        public Task<bool> AnyActiveSystemAdministratorAsync(CancellationToken ct)
+            => throw new NotSupportedException();
+
+        public Task<bool> ExistsWithEmailAsync(string email, CancellationToken ct)
             => throw new NotSupportedException();
 
         public Task<bool> ExistsActiveWithEmailAsync(string email, Guid? excludingEmployeeId, CancellationToken ct)

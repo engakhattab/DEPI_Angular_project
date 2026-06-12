@@ -16,7 +16,12 @@ public interface IEmployeeRepository
     Task<Employee?> GetByIdWithDetailsAsync(Guid id, CancellationToken ct);
     Task<Employee?> GetByApplicationUserIdWithDetailsAsync(string applicationUserId, CancellationToken ct);
     Task<Employee?> GetByEmployeeNumberWithDetailsAsync(string employeeNumber, CancellationToken ct);
+    Task<IReadOnlyList<Employee>> FindByEmailOrEmployeeNumberAsync(string identifier, CancellationToken ct);
     Task<IReadOnlyList<Employee>> GetDirectReportsAsync(Guid managerId, CancellationToken ct);
+    Task<IReadOnlyList<Employee>> GetAllActiveAsync(CancellationToken ct);
+    Task<IReadOnlySet<Guid>> GetDirectAndIndirectReportIdsAsync(Guid managerId, CancellationToken ct);
+    Task<bool> AnyActiveSystemAdministratorAsync(CancellationToken ct);
+    Task<bool> ExistsWithEmailAsync(string email, CancellationToken ct);
     Task<bool> ExistsActiveWithEmailAsync(string email, Guid? excludingEmployeeId, CancellationToken ct);
     Task<Guid?> GetManagerIdAsync(Guid employeeId, CancellationToken ct);
     Task<bool> IsAuthenticationEligibleAsync(Guid employeeId, CancellationToken ct);

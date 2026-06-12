@@ -3,6 +3,8 @@ using System.Text.Json.Serialization;
 using HR.Application;
 using HR.Infrastructure;
 using HR.Infrastructure.Auth;
+using HR.Infrastructure.Authorization;
+using HR.API.Extensions;
 using HR.API.Middleware;
 using HR.Shared.Serialization;
 using Microsoft.AspNetCore.Authentication;
@@ -59,7 +61,7 @@ public class Program
                 };
             });
 
-        builder.Services.AddAuthorization();
+        builder.Services.AddHrAuthorizationPolicies();
 
         builder.Services.AddControllers(options =>
             {
@@ -90,6 +92,12 @@ public class Program
         builder.Services.AddSwaggerGen();
 
         var app = builder.Build();
+
+        using (var scope = app.Services.CreateScope())
+        {
+            var bootstrapper = scope.ServiceProvider.GetRequiredService<InitialSystemAdminBootstrapper>();
+            bootstrapper.ExecuteAsync(CancellationToken.None).GetAwaiter().GetResult();
+        }
 
         app.UseMiddleware<GlobalExceptionMiddleware>();
 
