@@ -14,8 +14,9 @@ public class VacationRequestReviewBusinessRuleTests
     {
         await using var fixture = await ReviewFixture.CreateAsync();
         var employee = await fixture.AddEmployeeAsync("EMP-701", "employee701@example.com", vacationBalanceDays: 10);
-        var reviewer = await fixture.AddEmployeeAsync("EMP-702", "reviewer702@example.com");
+        var reviewer = await fixture.AddEmployeeAsync("EMP-702", "reviewer702@example.com", role: EmployeeRole.Manager);
         var request = await fixture.AddVacationRequestAsync(employee.Id, VacationRequestStatus.Pending, workingDayCount: 3);
+        await fixture.SetManagerAsync(reviewer.Id, employee.Id);
 
         var result = await fixture.Service.UpdateVacationStatusAsync(
             request.Id,
@@ -35,8 +36,9 @@ public class VacationRequestReviewBusinessRuleTests
     {
         await using var fixture = await ReviewFixture.CreateAsync();
         var employee = await fixture.AddEmployeeAsync("EMP-703", "employee703@example.com", vacationBalanceDays: 6);
-        var reviewer = await fixture.AddEmployeeAsync("EMP-704", "reviewer704@example.com");
+        var reviewer = await fixture.AddEmployeeAsync("EMP-704", "reviewer704@example.com", role: EmployeeRole.Manager);
         var request = await fixture.AddVacationRequestAsync(employee.Id, VacationRequestStatus.Approved, workingDayCount: 4);
+        await fixture.SetManagerAsync(reviewer.Id, employee.Id);
 
         var result = await fixture.Service.UpdateVacationStatusAsync(
             request.Id,
@@ -53,8 +55,9 @@ public class VacationRequestReviewBusinessRuleTests
     {
         await using var fixture = await ReviewFixture.CreateAsync();
         var employee = await fixture.AddEmployeeAsync("EMP-705", "employee705@example.com");
-        var reviewer = await fixture.AddEmployeeAsync("EMP-706", "reviewer706@example.com");
+        var reviewer = await fixture.AddEmployeeAsync("EMP-706", "reviewer706@example.com", role: EmployeeRole.Manager);
         var request = await fixture.AddVacationRequestAsync(employee.Id, VacationRequestStatus.Rejected);
+        await fixture.SetManagerAsync(reviewer.Id, employee.Id);
 
         var result = await fixture.Service.UpdateVacationStatusAsync(
             request.Id,
@@ -70,7 +73,7 @@ public class VacationRequestReviewBusinessRuleTests
     public async Task UpdateVacationStatusAsync_RejectsSelfReview()
     {
         await using var fixture = await ReviewFixture.CreateAsync();
-        var employee = await fixture.AddEmployeeAsync("EMP-707", "employee707@example.com");
+        var employee = await fixture.AddEmployeeAsync("EMP-707", "employee707@example.com", role: EmployeeRole.Manager);
         var request = await fixture.AddVacationRequestAsync(employee.Id, VacationRequestStatus.Pending);
 
         var result = await fixture.Service.UpdateVacationStatusAsync(
@@ -84,11 +87,11 @@ public class VacationRequestReviewBusinessRuleTests
     }
 
     [Fact]
-    public async Task UpdateVacationStatusAsync_AllowsAnyAuthenticatedNonRequester()
+    public async Task UpdateVacationStatusAsync_RejectsSuspendedReviewer()
     {
         await using var fixture = await ReviewFixture.CreateAsync();
         var employee = await fixture.AddEmployeeAsync("EMP-708", "employee708@example.com");
-        var reviewer = await fixture.AddEmployeeAsync("EMP-709", "reviewer709@example.com", status: EmployeeStatus.Suspended);
+        var reviewer = await fixture.AddEmployeeAsync("EMP-709", "reviewer709@example.com", status: EmployeeStatus.Suspended, role: EmployeeRole.Manager);
         var request = await fixture.AddVacationRequestAsync(employee.Id, VacationRequestStatus.Pending);
 
         var result = await fixture.Service.UpdateVacationStatusAsync(
@@ -97,7 +100,8 @@ public class VacationRequestReviewBusinessRuleTests
             new VacationRequestStatusUpdateRequest { Status = VacationRequestStatus.Rejected },
             CancellationToken.None);
 
-        Assert.True(result.IsSuccess);
+        Assert.False(result.IsSuccess);
+        Assert.Equal("FORBIDDEN", result.Error!.Code);
     }
 
     [Fact]
@@ -105,8 +109,9 @@ public class VacationRequestReviewBusinessRuleTests
     {
         await using var fixture = await ReviewFixture.CreateAsync();
         var employee = await fixture.AddEmployeeAsync("EMP-710", "employee710@example.com");
-        var reviewer = await fixture.AddEmployeeAsync("EMP-711", "reviewer711@example.com");
+        var reviewer = await fixture.AddEmployeeAsync("EMP-711", "reviewer711@example.com", role: EmployeeRole.Manager);
         var request = await fixture.AddVacationRequestAsync(employee.Id, VacationRequestStatus.Approved, workingDayCount: 2);
+        await fixture.SetManagerAsync(reviewer.Id, employee.Id);
         request.ReviewedByEmployeeId = reviewer.Id;
         request.ReviewedAt = fixture.UtcNow.AddHours(-2);
         request.UpdatedAt = fixture.UtcNow.AddHours(-2);
@@ -133,8 +138,8 @@ public class VacationRequestReviewBusinessRuleTests
         var pending = await fixture.AddVacationRequestAsync(employee.Id, VacationRequestStatus.Pending);
         var approved = await fixture.AddVacationRequestAsync(employee.Id, VacationRequestStatus.Approved);
 
-        var pendingResult = await fixture.Service.DeleteVacationRequestAsync(pending.Id, CancellationToken.None);
-        var approvedResult = await fixture.Service.DeleteVacationRequestAsync(approved.Id, CancellationToken.None);
+        var pendingResult = await fixture.Service.DeleteVacationRequestAsync(employee.Id, pending.Id, CancellationToken.None);
+        var approvedResult = await fixture.Service.DeleteVacationRequestAsync(employee.Id, approved.Id, CancellationToken.None);
 
         Assert.True(pendingResult.IsSuccess);
         Assert.False(approvedResult.IsSuccess);
@@ -172,14 +177,26 @@ public class VacationRequestReviewBusinessRuleTests
             string employeeNumber,
             string email,
             EmployeeStatus status = EmployeeStatus.Active,
-            int vacationBalanceDays = 21)
+            int vacationBalanceDays = 21,
+            EmployeeRole role = EmployeeRole.Employee)
         {
             return _environment.AddEmployeeAsync(
                 employeeNumber,
                 email,
                 _environment.DefaultDepartment!.Id,
                 status: status,
-                vacationBalanceDays: vacationBalanceDays);
+                vacationBalanceDays: vacationBalanceDays,
+                role: role);
+        }
+
+        public async Task SetManagerAsync(Guid managerId, Guid employeeId)
+        {
+            var employee = await _environment.Context.Employees.FindAsync(employeeId);
+            if (employee is not null)
+            {
+                employee.ManagerId = managerId;
+                await _environment.Context.SaveChangesAsync();
+            }
         }
 
         public Task<VacationRequest> AddVacationRequestAsync(

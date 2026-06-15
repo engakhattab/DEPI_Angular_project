@@ -21,6 +21,10 @@ public class VacationRequestResponse
 
     public int WorkingDayCount { get; set; }
 
+    public Guid? CreatedByEmployeeId { get; set; }
+
+    public string? CreatedByEmployeeName { get; set; }
+
     public Guid? ReviewedByEmployeeId { get; set; }
 
     public string? ReviewedByEmployeeName { get; set; }
@@ -43,6 +47,8 @@ public class VacationRequestResponse
             Reason = request.Reason,
             Status = request.Status,
             WorkingDayCount = request.WorkingDayCount,
+            CreatedByEmployeeId = request.CreatedByEmployeeId,
+            CreatedByEmployeeName = request.CreatedBy?.FullName,
             ReviewedByEmployeeId = request.ReviewedByEmployeeId,
             ReviewedByEmployeeName = request.ReviewedBy?.FullName,
             ReviewedAt = request.ReviewedAt,

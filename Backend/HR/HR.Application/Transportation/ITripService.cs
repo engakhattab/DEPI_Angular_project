@@ -6,8 +6,25 @@ namespace HR.Application.Transportation;
 
 public interface ITripService
 {
-    Task<PagedList<TripResponse>> GetTripsAsync(int page, int pageSize, CancellationToken ct);
-    Task<TripResponse?> GetTripByIdAsync(Guid id, CancellationToken ct);
-    Task<Result<TripResponse>> CreateTripAsync(TripCreateRequest request, CancellationToken ct);
-    Task<Result> DeleteTripAsync(Guid id, CancellationToken ct);
+    Task<Result<PagedList<TripResponse>>> GetTripsAsync(
+        Guid requesterEmployeeId,
+        Guid? travelerEmployeeId,
+        int page,
+        int pageSize,
+        CancellationToken ct);
+
+    Task<Result<TripResponse>> GetTripByIdAsync(
+        Guid requesterEmployeeId,
+        Guid id,
+        CancellationToken ct);
+
+    Task<Result<TripResponse>> CreateTripAsync(
+        Guid requesterEmployeeId,
+        TripCreateRequest request,
+        CancellationToken ct);
+
+    Task<Result> DeleteTripAsync(
+        Guid requesterEmployeeId,
+        Guid id,
+        CancellationToken ct);
 }

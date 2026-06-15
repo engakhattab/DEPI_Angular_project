@@ -1,3 +1,4 @@
+using HR.Application.Authorization;
 using HR.Application.DTOs.VacationRequests;
 using HR.Application.VacationRequests;
 using HR.Domain.Entities;
@@ -12,38 +13,184 @@ namespace HR.Infrastructure.VacationRequests;
 public class VacationRequestService(
     IVacationRequestRepository vacationRequestRepository,
     IEmployeeRepository employeeRepository,
+    IEmployeeAccessService employeeAccessService,
     WorkingDayCalendar workingDayCalendar,
     TimeProvider timeProvider,
     IUnitOfWork unitOfWork) : IVacationRequestService
 {
     private readonly IVacationRequestRepository _vacationRequestRepository = vacationRequestRepository;
     private readonly IEmployeeRepository _employeeRepository = employeeRepository;
+    private readonly IEmployeeAccessService _employeeAccessService = employeeAccessService;
     private readonly WorkingDayCalendar _workingDayCalendar = workingDayCalendar;
     private readonly TimeProvider _timeProvider = timeProvider;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
 
-    public async Task<PagedList<VacationRequestResponse>> GetVacationRequestsAsync(
+    public async Task<Result<PagedList<VacationRequestResponse>>> GetVacationRequestsAsync(
+        Guid requesterEmployeeId,
         VacationRequestStatus? status,
         Guid? employeeId,
         int page,
         int pageSize,
         CancellationToken ct)
     {
-        var pagedEntities = await _vacationRequestRepository.GetPageWithEmployeeAsync(status, employeeId, page, pageSize, ct);
-        var items = pagedEntities.Items.Select(VacationRequestResponse.FromEntity).ToList();
+        var requesterResult = await _employeeAccessService.GetCurrentAsync(requesterEmployeeId, ct);
+        if (requesterResult.IsFailure)
+        {
+            return Result<PagedList<VacationRequestResponse>>.Failure(requesterResult.Error!);
+        }
 
-        return new PagedList<VacationRequestResponse>(items, pagedEntities.TotalCount, pagedEntities.Page, pagedEntities.PageSize);
+        var requester = requesterResult.Value!;
+        if (IsDeletedOrTerminated(requester))
+        {
+            return Result<PagedList<VacationRequestResponse>>.Failure(ServiceError.Forbidden());
+        }
+
+        if (requester.Role is EmployeeRole.HRAdministrator or EmployeeRole.SystemAdministrator)
+        {
+            if (!requester.IsActive)
+            {
+                return Result<PagedList<VacationRequestResponse>>.Failure(ServiceError.Forbidden());
+            }
+
+            var pagedEntities = await _vacationRequestRepository.GetPageWithEmployeeAsync(
+                status, employeeId, page, pageSize, ct);
+            var items = pagedEntities.Items.Select(VacationRequestResponse.FromEntity).ToList();
+            return Result<PagedList<VacationRequestResponse>>.Success(
+                new PagedList<VacationRequestResponse>(items, pagedEntities.TotalCount, pagedEntities.Page, pagedEntities.PageSize));
+        }
+
+        IReadOnlySet<Guid> allowedOwnerIds;
+
+        if (requester.Role == EmployeeRole.Manager)
+        {
+            if (employeeId.HasValue && employeeId.Value == requesterEmployeeId)
+            {
+                allowedOwnerIds = new HashSet<Guid> { requesterEmployeeId };
+            }
+            else if (employeeId.HasValue)
+            {
+                var teamIds = await _employeeRepository.GetDirectAndIndirectReportIdsAsync(requesterEmployeeId, ct);
+                if (teamIds.Contains(employeeId.Value))
+                {
+                    allowedOwnerIds = new HashSet<Guid> { employeeId.Value };
+                }
+                else
+                {
+                    allowedOwnerIds = new HashSet<Guid>();
+                }
+            }
+            else
+            {
+                allowedOwnerIds = await _employeeRepository.GetDirectAndIndirectReportIdsAsync(requesterEmployeeId, ct);
+            }
+        }
+        else
+        {
+            if (employeeId.HasValue && employeeId.Value != requesterEmployeeId)
+            {
+                allowedOwnerIds = new HashSet<Guid>();
+            }
+            else
+            {
+                allowedOwnerIds = new HashSet<Guid> { requesterEmployeeId };
+            }
+        }
+
+        var scopedPage = await _vacationRequestRepository.GetScopedPageWithEmployeeAsync(
+            allowedOwnerIds, status, null, page, pageSize, ct);
+        var scopedItems = scopedPage.Items.Select(VacationRequestResponse.FromEntity).ToList();
+        return Result<PagedList<VacationRequestResponse>>.Success(
+            new PagedList<VacationRequestResponse>(scopedItems, scopedPage.TotalCount, scopedPage.Page, scopedPage.PageSize));
     }
 
-    public async Task<VacationRequestResponse?> GetVacationRequestByIdAsync(Guid id, CancellationToken ct)
+    public async Task<Result<VacationRequestResponse>> GetVacationRequestByIdAsync(
+        Guid requesterEmployeeId,
+        Guid id,
+        CancellationToken ct)
     {
-        var request = await _vacationRequestRepository.GetByIdWithEmployeeAsync(id, ct);
+        var vacationRequest = await _vacationRequestRepository.GetByIdWithEmployeeAsync(id, ct);
 
-        return request is null ? null : VacationRequestResponse.FromEntity(request);
+        if (vacationRequest is null)
+        {
+            return Result<VacationRequestResponse>.Failure(
+                ServiceError.NotFound($"Vacation request '{id}' was not found.", "NOT_FOUND"));
+        }
+
+        var requesterResult = await _employeeAccessService.GetCurrentAsync(requesterEmployeeId, ct);
+        if (requesterResult.IsFailure)
+        {
+            return Result<VacationRequestResponse>.Failure(requesterResult.Error!);
+        }
+
+        var requester = requesterResult.Value!;
+        if (IsDeletedOrTerminated(requester))
+        {
+            return Result<VacationRequestResponse>.Failure(ServiceError.Forbidden());
+        }
+
+        if (requester.Role is EmployeeRole.HRAdministrator or EmployeeRole.SystemAdministrator)
+        {
+            if (!requester.IsActive)
+            {
+                return Result<VacationRequestResponse>.Failure(ServiceError.Forbidden());
+            }
+
+            return Result<VacationRequestResponse>.Success(VacationRequestResponse.FromEntity(vacationRequest));
+        }
+
+        bool canAccess = requesterEmployeeId == vacationRequest.EmployeeId;
+
+        if (!canAccess && requester.Role == EmployeeRole.Manager)
+        {
+            canAccess = await _employeeAccessService.IsManagerOfAsync(requesterEmployeeId, vacationRequest.EmployeeId, ct);
+        }
+
+        if (!canAccess)
+        {
+            return Result<VacationRequestResponse>.Failure(ServiceError.Forbidden());
+        }
+
+        return Result<VacationRequestResponse>.Success(VacationRequestResponse.FromEntity(vacationRequest));
     }
 
-    public async Task<Result<VacationRequestResponse>> CreateVacationRequestAsync(VacationRequestCreateRequest request, CancellationToken ct)
+    public async Task<Result<VacationRequestResponse>> CreateVacationRequestAsync(
+        Guid requesterEmployeeId,
+        VacationRequestCreateRequest request,
+        CancellationToken ct)
     {
+        var requesterResult = await _employeeAccessService.GetCurrentAsync(requesterEmployeeId, ct);
+        if (requesterResult.IsFailure)
+        {
+            return Result<VacationRequestResponse>.Failure(requesterResult.Error!);
+        }
+
+        var requester = requesterResult.Value!;
+        if (IsDeletedOrTerminated(requester))
+        {
+            return Result<VacationRequestResponse>.Failure(ServiceError.Forbidden());
+        }
+
+        bool canCreateForTarget;
+
+        if (requester.Role is EmployeeRole.HRAdministrator or EmployeeRole.SystemAdministrator)
+        {
+            if (!requester.IsActive)
+            {
+                return Result<VacationRequestResponse>.Failure(ServiceError.Forbidden());
+            }
+
+            canCreateForTarget = true;
+        }
+        else
+        {
+            canCreateForTarget = requesterEmployeeId == request.EmployeeId;
+        }
+
+        if (!canCreateForTarget)
+        {
+            return Result<VacationRequestResponse>.Failure(ServiceError.Forbidden());
+        }
+
         if (request.StartDate > request.EndDate)
         {
             return Result<VacationRequestResponse>.Failure(
@@ -104,6 +251,7 @@ public class VacationRequestService(
             Reason = request.Reason,
             Status = VacationRequestStatus.Pending,
             WorkingDayCount = workingDayCount,
+            CreatedByEmployeeId = requesterEmployeeId,
             CreatedAt = DateTimeOffset.UtcNow
         };
 
@@ -111,6 +259,9 @@ public class VacationRequestService(
         await _unitOfWork.SaveChangesAsync(ct);
 
         vacationRequest.Employee = employee;
+        vacationRequest.CreatedBy = requesterEmployeeId == employee.Id
+            ? employee
+            : await _employeeRepository.GetByIdAsync(requesterEmployeeId, ct);
         return Result<VacationRequestResponse>.Success(VacationRequestResponse.FromEntity(vacationRequest));
     }
 
@@ -128,10 +279,52 @@ public class VacationRequestService(
                 ServiceError.NotFound($"Vacation request '{id}' was not found.", "NOT_FOUND"));
         }
 
+        var requesterResult = await _employeeAccessService.GetCurrentAsync(reviewerEmployeeId, ct);
+        if (requesterResult.IsFailure)
+        {
+            return Result<VacationRequestResponse>.Failure(requesterResult.Error!);
+        }
+
+        var requester = requesterResult.Value!;
+        if (IsDeletedOrTerminated(requester))
+        {
+            return Result<VacationRequestResponse>.Failure(ServiceError.Forbidden());
+        }
+
+        if (requester.Role == EmployeeRole.Employee)
+        {
+            return Result<VacationRequestResponse>.Failure(ServiceError.Forbidden());
+        }
+
         if (vacationRequest.EmployeeId == reviewerEmployeeId)
         {
             return Result<VacationRequestResponse>.Failure(
                 ServiceError.BusinessRule("Employees cannot approve or reject their own vacation requests."));
+        }
+
+        bool canReview;
+
+        if (requester.Role is EmployeeRole.HRAdministrator or EmployeeRole.SystemAdministrator)
+        {
+            if (!requester.IsActive)
+            {
+                return Result<VacationRequestResponse>.Failure(ServiceError.Forbidden());
+            }
+
+            canReview = true;
+        }
+        else if (requester.Role == EmployeeRole.Manager)
+        {
+            canReview = await _employeeAccessService.IsManagerOfAsync(reviewerEmployeeId, vacationRequest.EmployeeId, ct);
+        }
+        else
+        {
+            canReview = false;
+        }
+
+        if (!canReview)
+        {
+            return Result<VacationRequestResponse>.Failure(ServiceError.Forbidden());
         }
 
         if (vacationRequest.Status == request.Status)
@@ -190,12 +383,49 @@ public class VacationRequestService(
         return Result<VacationRequestResponse>.Success(VacationRequestResponse.FromEntity(vacationRequest));
     }
 
-    public async Task<Result> DeleteVacationRequestAsync(Guid id, CancellationToken ct)
+    public async Task<Result> DeleteVacationRequestAsync(
+        Guid requesterEmployeeId,
+        Guid id,
+        CancellationToken ct)
     {
-        var vacationRequest = await _vacationRequestRepository.GetByIdAsync(id, ct);
+        var vacationRequest = await _vacationRequestRepository.GetTrackedByIdWithOwnerDataAsync(id, ct);
+
         if (vacationRequest is null)
         {
             return Result.Failure(ServiceError.NotFound($"Vacation request '{id}' was not found.", "NOT_FOUND"));
+        }
+
+        var requesterResult = await _employeeAccessService.GetCurrentAsync(requesterEmployeeId, ct);
+        if (requesterResult.IsFailure)
+        {
+            return Result.Failure(requesterResult.Error!);
+        }
+
+        var requester = requesterResult.Value!;
+        if (IsDeletedOrTerminated(requester))
+        {
+            return Result.Failure(ServiceError.Forbidden());
+        }
+
+        bool canDelete;
+
+        if (requester.Role is EmployeeRole.HRAdministrator or EmployeeRole.SystemAdministrator)
+        {
+            if (!requester.IsActive)
+            {
+                return Result.Failure(ServiceError.Forbidden());
+            }
+
+            canDelete = true;
+        }
+        else
+        {
+            canDelete = requesterEmployeeId == vacationRequest.EmployeeId;
+        }
+
+        if (!canDelete)
+        {
+            return Result.Failure(ServiceError.Forbidden());
         }
 
         if (vacationRequest.Status != VacationRequestStatus.Pending)
@@ -207,6 +437,11 @@ public class VacationRequestService(
         await _unitOfWork.SaveChangesAsync(ct);
 
         return Result.Success();
+    }
+
+    private static bool IsDeletedOrTerminated(EmployeeAccessContext requester)
+    {
+        return requester.IsDeleted || requester.IsTerminated;
     }
 
     private static bool IsAllowedTransition(VacationRequestStatus currentStatus, VacationRequestStatus requestedStatus)

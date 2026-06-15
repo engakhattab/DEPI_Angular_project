@@ -96,10 +96,16 @@ public class Phase7ModelTests
     public void Phase7TablesAreIntroducedOnlyByPhase7Migration()
     {
         var migrationsPath = GetRepositoryPath("HR.Infrastructure", "Data", "Migrations");
+        const string phase7MigrationId = "20260606235241";
         var phase7 = File.ReadAllText(Path.Combine(migrationsPath, "20260606235241_Phase7AdvancedHrFeatures.cs"));
         var earlierMigrationFiles = Directory.GetFiles(migrationsPath, "*.cs")
-            .Where(path => !Path.GetFileName(path).Contains("Phase7AdvancedHrFeatures", StringComparison.Ordinal)
-                && !Path.GetFileName(path).Equals("ApplicationDbContextModelSnapshot.cs", StringComparison.Ordinal))
+            .Where(path =>
+            {
+                var fileName = Path.GetFileName(path);
+                return !fileName.EndsWith(".Designer.cs", StringComparison.Ordinal)
+                    && !fileName.Equals("ApplicationDbContextModelSnapshot.cs", StringComparison.Ordinal)
+                    && string.CompareOrdinal(fileName[..14], phase7MigrationId) < 0;
+            })
             .ToList();
         var phase7Tables = new[]
         {

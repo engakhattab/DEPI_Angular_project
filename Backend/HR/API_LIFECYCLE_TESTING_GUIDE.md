@@ -820,6 +820,8 @@ Expected:
 - Status: `201 Created`
 - `status`: `Pending`
 - `workingDayCount`: calculated excluding Friday/Saturday
+- `createdByEmployeeId`: the authenticated employee who submitted the request
+- `createdByEmployeeName`: the authenticated employee name when available
 
 Copy:
 
@@ -1756,6 +1758,6 @@ The guide uses routes and DTOs from the current source code. Verify these in Swa
 
 - `POST /api/employees/{employeeId}/documents` multipart form rendering for `category` and `file`.
 - Casing of controller-token routes such as `/api/vacationrequests`; ASP.NET routing is case-insensitive, but Swagger shows the generated route.
-- Controller-level authorization for departments, vacation requests, and trips is authenticated access. Employee endpoints use role-specific authorization (Phase 9): Employee/Manager receive `403` for list/create/update/delete, Employee self-only for detail, Manager team-scoped list, HR/System wide access. Verify role expectations from the Phase 9 access matrix.
+- Controller-level authorization for departments, vacation requests, and trips is authenticated access. Vacation request endpoints use role-specific authorization (Phase 10): Employee own-only list/detail/create/delete; Manager team-only list (excludes self by default), self filter available, self/team detail, self-only create/delete, team-only review (self-review forbidden); HR/System organization-wide list/detail/create/delete/review (self-review forbidden). Employee endpoints use role-specific authorization (Phase 9): Employee/Manager receive `403` for list/create/update/delete, Employee self-only for detail, Manager team-scoped list, HR/System wide access. Verify role expectations from the Phase 9 and Phase 10 access matrices.
 - Trip approval/rejection endpoints do not exist in the current API.
 - Compensation has only `GET` and `PUT`; `PUT` creates or updates compensation.

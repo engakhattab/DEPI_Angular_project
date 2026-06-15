@@ -24,12 +24,19 @@ public class VacationRequestConfiguration : IEntityTypeConfiguration<VacationReq
 
         entity.HasIndex(v => new { v.EmployeeId, v.Status, v.StartDate, v.EndDate });
 
+        entity.HasIndex(v => v.CreatedByEmployeeId);
+
         entity.HasIndex(v => v.ReviewedByEmployeeId);
 
         entity.HasOne(v => v.Employee)
             .WithMany()
             .HasForeignKey(v => v.EmployeeId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        entity.HasOne(v => v.CreatedBy)
+            .WithMany()
+            .HasForeignKey(v => v.CreatedByEmployeeId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         entity.HasOne(v => v.ReviewedBy)
             .WithMany()

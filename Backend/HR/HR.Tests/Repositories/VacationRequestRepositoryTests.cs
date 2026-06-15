@@ -48,6 +48,22 @@ public class VacationRequestRepositoryTests
     }
 
     [Fact]
+    public async Task GetTrackedByIdWithOwnerDataAsync_ReturnsTrackedRequestWithOwner()
+    {
+        await using var environment = await SqliteTestEnvironment.CreateAsync(seedDefaultDepartment: true);
+        var employee = await environment.AddEmployeeAsync("EMP-205", "employee-e@example.com", environment.DefaultDepartment!.Id);
+        var request = await environment.AddVacationRequestAsync(employee.Id, VacationRequestStatus.Pending, DateTimeOffset.UtcNow);
+        var repository = new VacationRequestRepository(environment.Context);
+
+        var withOwner = await repository.GetTrackedByIdWithOwnerDataAsync(request.Id, CancellationToken.None);
+
+        Assert.NotNull(withOwner);
+        Assert.Equal(request.Id, withOwner!.Id);
+        Assert.NotNull(withOwner.Employee);
+        Assert.Equal(employee.Id, withOwner.Employee!.Id);
+    }
+
+    [Fact]
     public async Task HasOverlappingPendingOrApprovedAsync_UsesInclusiveBoundariesAndIgnoresRejectedRows()
     {
         await using var environment = await SqliteTestEnvironment.CreateAsync(seedDefaultDepartment: true);

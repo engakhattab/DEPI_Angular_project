@@ -7,19 +7,32 @@ namespace HR.Application.VacationRequests;
 
 public interface IVacationRequestService
 {
-    Task<PagedList<VacationRequestResponse>> GetVacationRequestsAsync(
+    Task<Result<PagedList<VacationRequestResponse>>> GetVacationRequestsAsync(
+        Guid requesterEmployeeId,
         VacationRequestStatus? status,
         Guid? employeeId,
         int page,
         int pageSize,
         CancellationToken ct);
 
-    Task<VacationRequestResponse?> GetVacationRequestByIdAsync(Guid id, CancellationToken ct);
-    Task<Result<VacationRequestResponse>> CreateVacationRequestAsync(VacationRequestCreateRequest request, CancellationToken ct);
+    Task<Result<VacationRequestResponse>> GetVacationRequestByIdAsync(
+        Guid requesterEmployeeId,
+        Guid id,
+        CancellationToken ct);
+
+    Task<Result<VacationRequestResponse>> CreateVacationRequestAsync(
+        Guid requesterEmployeeId,
+        VacationRequestCreateRequest request,
+        CancellationToken ct);
+
     Task<Result<VacationRequestResponse>> UpdateVacationStatusAsync(
         Guid id,
         Guid reviewerEmployeeId,
         VacationRequestStatusUpdateRequest request,
         CancellationToken ct);
-    Task<Result> DeleteVacationRequestAsync(Guid id, CancellationToken ct);
+
+    Task<Result> DeleteVacationRequestAsync(
+        Guid requesterEmployeeId,
+        Guid id,
+        CancellationToken ct);
 }

@@ -15,6 +15,7 @@ public class TripServiceBusinessRuleTests
         var service = environment.GetRequiredService<ITripService>();
 
         var result = await service.CreateTripAsync(
+            employee.Id,
             BuildRequest(employee.Id, new DateOnly(2026, 6, 7)),
             CancellationToken.None);
 
@@ -30,35 +31,75 @@ public class TripServiceBusinessRuleTests
         var service = environment.GetRequiredService<ITripService>();
 
         var result = await service.CreateTripAsync(
+            Guid.NewGuid(),
             BuildRequest(Guid.NewGuid(), new DateOnly(2026, 6, 7)),
             CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal("NOT_FOUND", result.Error!.Code);
+        Assert.Equal("UNAUTHORIZED", result.Error!.Code);
     }
 
-    [Theory]
-    [InlineData(EmployeeStatus.Suspended, false)]
-    [InlineData(EmployeeStatus.Terminated, false)]
-    [InlineData(EmployeeStatus.Active, true)]
-    public async Task CreateTripAsync_RejectsInactiveOrDeletedRequester(EmployeeStatus status, bool isDeleted)
+    [Fact]
+    public async Task CreateTripAsync_RejectsSuspendedRequesterAsTraveler()
     {
         await using var environment = await CreateEnvironmentAsync();
         var employee = await environment.AddEmployeeAsync(
             $"EMP-{Guid.NewGuid():N}"[..11].ToUpperInvariant(),
             $"{Guid.NewGuid():N}@example.com",
             environment.DefaultDepartment!.Id,
-            status: status,
-            isDeleted: isDeleted,
-            terminatedAt: status == EmployeeStatus.Terminated || isDeleted ? new DateTimeOffset(2026, 6, 1, 0, 0, 0, TimeSpan.Zero) : null);
+            status: EmployeeStatus.Suspended);
         var service = environment.GetRequiredService<ITripService>();
 
         var result = await service.CreateTripAsync(
+            employee.Id,
             BuildRequest(employee.Id, new DateOnly(2026, 6, 7)),
             CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("BUSINESS_RULE_VIOLATION", result.Error!.Code);
+    }
+
+    [Fact]
+    public async Task CreateTripAsync_RejectsTerminatedRequester()
+    {
+        await using var environment = await CreateEnvironmentAsync();
+        var employee = await environment.AddEmployeeAsync(
+            $"EMP-{Guid.NewGuid():N}"[..11].ToUpperInvariant(),
+            $"{Guid.NewGuid():N}@example.com",
+            environment.DefaultDepartment!.Id,
+            status: EmployeeStatus.Terminated,
+            terminatedAt: new DateTimeOffset(2026, 6, 1, 0, 0, 0, TimeSpan.Zero));
+        var service = environment.GetRequiredService<ITripService>();
+
+        var result = await service.CreateTripAsync(
+            employee.Id,
+            BuildRequest(employee.Id, new DateOnly(2026, 6, 7)),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("UNAUTHORIZED", result.Error!.Code);
+    }
+
+    [Fact]
+    public async Task CreateTripAsync_RejectsDeletedRequester()
+    {
+        await using var environment = await CreateEnvironmentAsync();
+        var employee = await environment.AddEmployeeAsync(
+            $"EMP-{Guid.NewGuid():N}"[..11].ToUpperInvariant(),
+            $"{Guid.NewGuid():N}@example.com",
+            environment.DefaultDepartment!.Id,
+            status: EmployeeStatus.Active,
+            isDeleted: true,
+            terminatedAt: new DateTimeOffset(2026, 6, 1, 0, 0, 0, TimeSpan.Zero));
+        var service = environment.GetRequiredService<ITripService>();
+
+        var result = await service.CreateTripAsync(
+            employee.Id,
+            BuildRequest(employee.Id, new DateOnly(2026, 6, 7)),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("UNAUTHORIZED", result.Error!.Code);
     }
 
     [Theory]
@@ -72,6 +113,7 @@ public class TripServiceBusinessRuleTests
         var service = environment.GetRequiredService<ITripService>();
 
         var result = await service.CreateTripAsync(
+            employee.Id,
             BuildRequest(employee.Id, DateOnly.Parse(tripDateText)),
             CancellationToken.None);
 
@@ -80,21 +122,36 @@ public class TripServiceBusinessRuleTests
     }
 
     [Fact]
-    public async Task GetTripResponses_HandleHistoricalNullRequesterSafely()
+    public async Task GetTripResponses_HistoricalNullTraveler_ForbiddenForEmployee()
     {
         await using var environment = await CreateEnvironmentAsync();
+        var employee = await environment.AddEmployeeAsync("EMP-1003", "employee1003@example.com", environment.DefaultDepartment!.Id);
         var service = environment.GetRequiredService<ITripService>();
         var historicalTrip = await environment.AddTripAsync("Historical Trip", new DateTimeOffset(2026, 6, 3, 12, 0, 0, TimeSpan.Zero));
 
-        var byId = await service.GetTripByIdAsync(historicalTrip.Id, CancellationToken.None);
-        var page = await service.GetTripsAsync(1, 25, CancellationToken.None);
+        var byId = await service.GetTripByIdAsync(employee.Id, historicalTrip.Id, CancellationToken.None);
+        var page = await service.GetTripsAsync(employee.Id, null, 1, 25, CancellationToken.None);
 
-        Assert.NotNull(byId);
-        Assert.Null(byId!.RequestedByEmployeeId);
-        Assert.Null(byId.RequestedByEmployeeName);
-        Assert.Contains(page.Items, trip => trip.Id == historicalTrip.Id
-            && trip.RequestedByEmployeeId is null
-            && trip.RequestedByEmployeeName is null);
+        Assert.False(byId.IsSuccess);
+        Assert.Equal("FORBIDDEN", byId.Error!.Code);
+        Assert.Empty(page.Value!.Items);
+    }
+
+    [Fact]
+    public async Task GetTripResponses_HistoricalNullTraveler_AccessibleByHRAdmin()
+    {
+        await using var environment = await CreateEnvironmentAsync();
+        var hr = await environment.AddEmployeeAsync("EMP-HR1", "emp-hr1@example.com", environment.DefaultDepartment!.Id, role: EmployeeRole.HRAdministrator);
+        var service = environment.GetRequiredService<ITripService>();
+        var historicalTrip = await environment.AddTripAsync("Historical Trip", new DateTimeOffset(2026, 6, 3, 12, 0, 0, TimeSpan.Zero));
+
+        var byId = await service.GetTripByIdAsync(hr.Id, historicalTrip.Id, CancellationToken.None);
+        var page = await service.GetTripsAsync(hr.Id, null, 1, 25, CancellationToken.None);
+
+        Assert.True(byId.IsSuccess);
+        Assert.Equal(historicalTrip.Id, byId.Value!.Id);
+        Assert.Null(byId.Value.RequestedByEmployeeId);
+        Assert.Contains(page.Value!.Items, trip => trip.Id == historicalTrip.Id);
     }
 
     private static async Task<SqliteTestEnvironment> CreateEnvironmentAsync()

@@ -10,11 +10,26 @@ public class TripRepository(ApplicationDbContext context) : ITripRepository
 {
     private readonly ApplicationDbContext _context = context;
 
-    public Task<PagedList<Trip>> GetPageAsync(int page, int pageSize, CancellationToken ct)
+    public Task<PagedList<Trip>> GetPageByTravelersAsync(
+        IReadOnlySet<Guid>? allowedTravelerIds,
+        Guid? travelerEmployeeId,
+        int page,
+        int pageSize,
+        CancellationToken ct)
     {
-        var query = _context.Trips
+        IQueryable<Trip> query = _context.Trips
             .AsNoTracking()
             .Include(t => t.RequestedBy);
+
+        if (allowedTravelerIds is not null)
+        {
+            query = query.Where(t => t.RequestedByEmployeeId != null && allowedTravelerIds.Contains(t.RequestedByEmployeeId.Value));
+        }
+
+        if (travelerEmployeeId.HasValue)
+        {
+            query = query.Where(t => t.RequestedByEmployeeId == travelerEmployeeId.Value);
+        }
 
         return PagedQueryExecutor.ExecuteDescendingAsync(query, t => t.CreatedAt, _context.Database, page, pageSize, ct);
     }

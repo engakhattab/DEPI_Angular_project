@@ -14,6 +14,7 @@ public class VacationRequestServiceBusinessRuleTests
         var employee = await fixture.AddEmployeeAsync("EMP-601", "valid@example.com");
 
         var result = await fixture.Service.CreateVacationRequestAsync(
+            employee.Id,
             new VacationRequestCreateRequest
             {
                 EmployeeId = employee.Id,
@@ -42,6 +43,7 @@ public class VacationRequestServiceBusinessRuleTests
             workingDayCount: 3);
 
         var result = await fixture.Service.CreateVacationRequestAsync(
+            employee.Id,
             new VacationRequestCreateRequest
             {
                 EmployeeId = employee.Id,
@@ -69,6 +71,7 @@ public class VacationRequestServiceBusinessRuleTests
             workingDayCount: 3);
 
         var result = await fixture.Service.CreateVacationRequestAsync(
+            employee.Id,
             new VacationRequestCreateRequest
             {
                 EmployeeId = employee.Id,
@@ -82,15 +85,16 @@ public class VacationRequestServiceBusinessRuleTests
     }
 
     [Theory]
-    [InlineData(EmployeeStatus.Suspended, false, 21, "suspended@example.com")]
-    [InlineData(EmployeeStatus.Terminated, false, 21, "terminated@example.com")]
-    [InlineData(EmployeeStatus.Active, true, 21, "deleted@example.com")]
-    [InlineData(EmployeeStatus.Active, false, 1, "balance@example.com")]
+    [InlineData(EmployeeStatus.Suspended, false, 21, "suspended@example.com", "BUSINESS_RULE_VIOLATION")]
+    [InlineData(EmployeeStatus.Terminated, false, 21, "terminated@example.com", "FORBIDDEN")]
+    [InlineData(EmployeeStatus.Active, true, 21, "deleted@example.com", "FORBIDDEN")]
+    [InlineData(EmployeeStatus.Active, false, 1, "balance@example.com", "BUSINESS_RULE_VIOLATION")]
     public async Task CreateVacationRequestAsync_RejectsEmployeeStateAndBalanceFailures(
         EmployeeStatus status,
         bool isDeleted,
         int vacationBalanceDays,
-        string email)
+        string email,
+        string expectedCode)
     {
         await using var fixture = await VacationRequestFixture.CreateAsync(new DateTimeOffset(2026, 6, 3, 8, 0, 0, TimeSpan.Zero));
         var employee = await fixture.AddEmployeeAsync(
@@ -102,6 +106,7 @@ public class VacationRequestServiceBusinessRuleTests
             terminatedAt: status == EmployeeStatus.Terminated || isDeleted ? fixture.UtcNow : null);
 
         var result = await fixture.Service.CreateVacationRequestAsync(
+            employee.Id,
             new VacationRequestCreateRequest
             {
                 EmployeeId = employee.Id,
@@ -112,7 +117,7 @@ public class VacationRequestServiceBusinessRuleTests
             CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal("BUSINESS_RULE_VIOLATION", result.Error!.Code);
+        Assert.Equal(expectedCode, result.Error!.Code);
     }
 
     [Theory]
@@ -124,6 +129,7 @@ public class VacationRequestServiceBusinessRuleTests
         var employee = await fixture.AddEmployeeAsync("EMP-604", "dates@example.com");
 
         var result = await fixture.Service.CreateVacationRequestAsync(
+            employee.Id,
             new VacationRequestCreateRequest
             {
                 EmployeeId = employee.Id,
@@ -144,6 +150,7 @@ public class VacationRequestServiceBusinessRuleTests
         var employee = await fixture.AddEmployeeAsync("EMP-605", "notice@example.com");
 
         var result = await fixture.Service.CreateVacationRequestAsync(
+            employee.Id,
             new VacationRequestCreateRequest
             {
                 EmployeeId = employee.Id,

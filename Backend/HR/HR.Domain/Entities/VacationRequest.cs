@@ -20,6 +20,10 @@ public class VacationRequest
 
     public int WorkingDayCount { get; set; }
 
+    public Guid? CreatedByEmployeeId { get; set; }
+
+    public Employee? CreatedBy { get; set; }
+
     public Guid? ReviewedByEmployeeId { get; set; }
 
     public Employee? ReviewedBy { get; set; }

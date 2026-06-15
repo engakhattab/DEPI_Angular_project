@@ -2,7 +2,6 @@ using HR.API.Extensions;
 using HR.Application.DTOs.VacationRequests;
 using HR.Application.VacationRequests;
 using HR.Domain.Enums;
-using HR.Shared.Pagination;
 using HR.Shared.Results;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -18,37 +17,59 @@ public class VacationRequestsController(IVacationRequestService vacationRequestS
     private readonly IVacationRequestService _vacationRequestService = vacationRequestService;
 
     [HttpGet]
-    public async Task<ActionResult<PagedList<VacationRequestResponse>>> GetVacationRequests(
+    public async Task<IActionResult> GetVacationRequests(
         [FromQuery] VacationRequestStatus? status = null,
         [FromQuery] Guid? employeeId = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 25,
         CancellationToken cancellationToken = default)
     {
+        var requesterId = User.GetEmployeeId();
+        if (requesterId is null)
+        {
+            return this.ToActionResult(ServiceError.Unauthorized("Authenticated employee context is invalid."));
+        }
+
         var result = await _vacationRequestService.GetVacationRequestsAsync(
+            requesterId.Value,
             status,
             employeeId,
             page,
             pageSize,
             cancellationToken);
 
-        return Ok(result);
+        if (result.IsFailure)
+        {
+            return this.ToActionResult(result.Error!);
+        }
+
+        return Ok(result.Value);
     }
 
     [HttpGet("{id:guid}")]
-    public async Task<ActionResult<VacationRequestResponse>> GetVacationRequest(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetVacationRequest(Guid id, CancellationToken cancellationToken)
     {
-        var request = await _vacationRequestService.GetVacationRequestByIdAsync(id, cancellationToken);
-        if (request is null)
+        var requesterId = User.GetEmployeeId();
+        if (requesterId is null)
         {
-            return this.ToActionResult(ServiceError.NotFound($"Vacation request '{id}' was not found.", "NOT_FOUND"));
+            return this.ToActionResult(ServiceError.Unauthorized("Authenticated employee context is invalid."));
         }
 
-        return Ok(request);
+        var result = await _vacationRequestService.GetVacationRequestByIdAsync(
+            requesterId.Value,
+            id,
+            cancellationToken);
+
+        if (result.IsFailure)
+        {
+            return this.ToActionResult(result.Error!);
+        }
+
+        return Ok(result.Value);
     }
 
     [HttpPost]
-    public async Task<ActionResult<VacationRequestResponse>> CreateVacationRequest(
+    public async Task<IActionResult> CreateVacationRequest(
         [FromBody] VacationRequestCreateRequest request,
         CancellationToken cancellationToken)
     {
@@ -57,7 +78,17 @@ public class VacationRequestsController(IVacationRequestService vacationRequestS
             return ValidationProblem(ModelState);
         }
 
-        var result = await _vacationRequestService.CreateVacationRequestAsync(request, cancellationToken);
+        var requesterId = User.GetEmployeeId();
+        if (requesterId is null)
+        {
+            return this.ToActionResult(ServiceError.Unauthorized("Authenticated employee context is invalid."));
+        }
+
+        var result = await _vacationRequestService.CreateVacationRequestAsync(
+            requesterId.Value,
+            request,
+            cancellationToken);
+
         if (!result.IsSuccess)
         {
             return this.ToActionResult(result.Error!);
@@ -67,7 +98,7 @@ public class VacationRequestsController(IVacationRequestService vacationRequestS
     }
 
     [HttpPut("{id:guid}/status")]
-    public async Task<ActionResult<VacationRequestResponse>> UpdateVacationStatus(
+    public async Task<IActionResult> UpdateVacationStatus(
         Guid id,
         [FromBody] VacationRequestStatusUpdateRequest request,
         CancellationToken cancellationToken)
@@ -95,7 +126,17 @@ public class VacationRequestsController(IVacationRequestService vacationRequestS
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> DeleteVacationRequest(Guid id, CancellationToken cancellationToken)
     {
-        var result = await _vacationRequestService.DeleteVacationRequestAsync(id, cancellationToken);
+        var requesterId = User.GetEmployeeId();
+        if (requesterId is null)
+        {
+            return this.ToActionResult(ServiceError.Unauthorized("Authenticated employee context is invalid."));
+        }
+
+        var result = await _vacationRequestService.DeleteVacationRequestAsync(
+            requesterId.Value,
+            id,
+            cancellationToken);
+
         if (!result.IsSuccess)
         {
             return this.ToActionResult(result.Error!);

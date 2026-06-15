@@ -13,9 +13,20 @@ public interface IVacationRequestRepository
         int pageSize,
         CancellationToken ct);
 
+    Task<PagedList<VacationRequest>> GetScopedPageWithEmployeeAsync(
+        IReadOnlySet<Guid> allowedOwnerIds,
+        VacationRequestStatus? status,
+        Guid? employeeId,
+        int page,
+        int pageSize,
+        CancellationToken ct);
+
     Task<VacationRequest?> GetByIdAsync(Guid id, CancellationToken ct);
     Task<VacationRequest?> GetByIdWithEmployeeAsync(Guid id, CancellationToken ct);
     Task<VacationRequest?> GetTrackedByIdWithEmployeeAndReviewerAsync(Guid id, CancellationToken ct);
+
+    Task<VacationRequest?> GetTrackedByIdWithOwnerDataAsync(Guid id, CancellationToken ct);
+
     Task<IReadOnlyList<VacationRequest>> GetByEmployeeIdAsync(Guid employeeId, CancellationToken ct);
     Task<IReadOnlyList<VacationRequest>> GetPendingByEmployeeIdAsync(Guid employeeId, CancellationToken ct);
     Task<bool> HasOverlappingPendingOrApprovedAsync(

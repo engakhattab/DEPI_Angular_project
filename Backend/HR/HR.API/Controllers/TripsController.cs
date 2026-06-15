@@ -17,24 +17,42 @@ public class TripsController(ITripService tripService) : ControllerBase
 
     [HttpGet]
     public async Task<ActionResult<PagedList<TripResponse>>> GetTrips(
+        [FromQuery] Guid? travelerEmployeeId,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 25,
         CancellationToken cancellationToken = default)
     {
-        var result = await _tripService.GetTripsAsync(page, pageSize, cancellationToken);
-        return Ok(result);
+        var requesterId = User.GetEmployeeId();
+        if (requesterId is null)
+        {
+            return this.ToActionResult(ServiceError.Unauthorized("Invalid session."));
+        }
+
+        var result = await _tripService.GetTripsAsync(requesterId.Value, travelerEmployeeId, page, pageSize, cancellationToken);
+        if (!result.IsSuccess)
+        {
+            return this.ToActionResult(result.Error!);
+        }
+
+        return Ok(result.Value);
     }
 
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<TripResponse>> GetTrip(Guid id, CancellationToken cancellationToken)
     {
-        var trip = await _tripService.GetTripByIdAsync(id, cancellationToken);
-        if (trip is null)
+        var requesterId = User.GetEmployeeId();
+        if (requesterId is null)
         {
-            return this.ToActionResult(ServiceError.NotFound($"Trip '{id}' was not found.", "NOT_FOUND"));
+            return this.ToActionResult(ServiceError.Unauthorized("Invalid session."));
         }
 
-        return Ok(trip);
+        var result = await _tripService.GetTripByIdAsync(requesterId.Value, id, cancellationToken);
+        if (!result.IsSuccess)
+        {
+            return this.ToActionResult(result.Error!);
+        }
+
+        return Ok(result.Value);
     }
 
     [HttpPost]
@@ -42,12 +60,18 @@ public class TripsController(ITripService tripService) : ControllerBase
         [FromBody] TripCreateRequest request,
         CancellationToken cancellationToken)
     {
+        var requesterId = User.GetEmployeeId();
+        if (requesterId is null)
+        {
+            return this.ToActionResult(ServiceError.Unauthorized("Invalid session."));
+        }
+
         if (!ModelState.IsValid)
         {
             return ValidationProblem(ModelState);
         }
 
-        var result = await _tripService.CreateTripAsync(request, cancellationToken);
+        var result = await _tripService.CreateTripAsync(requesterId.Value, request, cancellationToken);
         if (!result.IsSuccess)
         {
             return this.ToActionResult(result.Error!);
@@ -59,7 +83,13 @@ public class TripsController(ITripService tripService) : ControllerBase
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> DeleteTrip(Guid id, CancellationToken cancellationToken)
     {
-        var result = await _tripService.DeleteTripAsync(id, cancellationToken);
+        var requesterId = User.GetEmployeeId();
+        if (requesterId is null)
+        {
+            return this.ToActionResult(ServiceError.Unauthorized("Invalid session."));
+        }
+
+        var result = await _tripService.DeleteTripAsync(requesterId.Value, id, cancellationToken);
         if (!result.IsSuccess)
         {
             return this.ToActionResult(result.Error!);

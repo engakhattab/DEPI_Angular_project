@@ -21,7 +21,36 @@ public class VacationRequestRepository(ApplicationDbContext context) : IVacation
         IQueryable<VacationRequest> query = _context.VacationRequests
             .AsNoTracking()
             .Include(v => v.Employee)
+            .Include(v => v.CreatedBy)
             .Include(v => v.ReviewedBy);
+
+        if (status.HasValue)
+        {
+            query = query.Where(v => v.Status == status.Value);
+        }
+
+        if (employeeId.HasValue)
+        {
+            query = query.Where(v => v.EmployeeId == employeeId.Value);
+        }
+
+        return PagedQueryExecutor.ExecuteDescendingAsync(query, v => v.CreatedAt, _context.Database, page, pageSize, ct);
+    }
+
+    public Task<PagedList<VacationRequest>> GetScopedPageWithEmployeeAsync(
+        IReadOnlySet<Guid> allowedOwnerIds,
+        VacationRequestStatus? status,
+        Guid? employeeId,
+        int page,
+        int pageSize,
+        CancellationToken ct)
+    {
+        IQueryable<VacationRequest> query = _context.VacationRequests
+            .AsNoTracking()
+            .Include(v => v.Employee)
+            .Include(v => v.CreatedBy)
+            .Include(v => v.ReviewedBy)
+            .Where(v => allowedOwnerIds.Contains(v.EmployeeId));
 
         if (status.HasValue)
         {
@@ -46,6 +75,7 @@ public class VacationRequestRepository(ApplicationDbContext context) : IVacation
         return _context.VacationRequests
             .AsNoTracking()
             .Include(v => v.Employee)
+            .Include(v => v.CreatedBy)
             .Include(v => v.ReviewedBy)
             .FirstOrDefaultAsync(v => v.Id == id, ct);
     }
@@ -54,7 +84,16 @@ public class VacationRequestRepository(ApplicationDbContext context) : IVacation
     {
         return _context.VacationRequests
             .Include(v => v.Employee)
+            .Include(v => v.CreatedBy)
             .Include(v => v.ReviewedBy)
+            .FirstOrDefaultAsync(v => v.Id == id, ct);
+    }
+
+    public Task<VacationRequest?> GetTrackedByIdWithOwnerDataAsync(Guid id, CancellationToken ct)
+    {
+        return _context.VacationRequests
+            .Include(v => v.Employee)
+            .Include(v => v.CreatedBy)
             .FirstOrDefaultAsync(v => v.Id == id, ct);
     }
 
