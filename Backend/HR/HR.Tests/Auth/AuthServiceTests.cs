@@ -1,6 +1,7 @@
 using HR.Application.Auth;
 using HR.Application.DTOs.Employees;
 using HR.Domain.Entities;
+using HR.Domain.Enums;
 using HR.Infrastructure.Auth;
 using HR.Infrastructure.Repositories;
 using HR.Shared.Pagination;
@@ -102,10 +103,19 @@ public class AuthServiceTests
         public Task<PagedList<Employee>> GetPageWithDetailsAsync(HR.Domain.Enums.EmployeeStatus? status, int page, int pageSize, CancellationToken ct)
             => throw new NotSupportedException();
 
+        public Task<PagedList<Employee>> GetScopedPageAsync(IReadOnlySet<Guid> allowedIds, EmployeeStatus? status, int page, int pageSize, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        public Task<PagedList<Employee>> GetOrganizationWidePageAsync(EmployeeStatus? status, int page, int pageSize, CancellationToken ct)
+            => throw new NotSupportedException();
+
         public Task<Employee?> GetByIdAsync(Guid id, CancellationToken ct)
             => throw new NotSupportedException();
 
         public Task<Employee?> GetByIdWithDetailsAsync(Guid id, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        public Task<Employee?> GetByIdWithDetailsIncludingSoftDeletedAsync(Guid id, CancellationToken ct)
             => throw new NotSupportedException();
 
         public Task<Employee?> GetByApplicationUserIdWithDetailsAsync(string applicationUserId, CancellationToken ct)
@@ -129,6 +139,9 @@ public class AuthServiceTests
         public Task<bool> AnyActiveSystemAdministratorAsync(CancellationToken ct)
             => throw new NotSupportedException();
 
+        public Task<int> GetActiveSystemAdministratorCountAsync(CancellationToken ct)
+            => throw new NotSupportedException();
+
         public Task<bool> ExistsWithEmailAsync(string email, CancellationToken ct)
             => throw new NotSupportedException();
 
@@ -142,6 +155,9 @@ public class AuthServiceTests
             => throw new NotSupportedException();
 
         public Task<bool> ExistsAsync(Guid id, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        public Task<bool> ExistsIncludingSoftDeletedAsync(Guid id, CancellationToken ct)
             => throw new NotSupportedException();
 
         public Task<bool> ExistsByNumberAsync(string employeeNumber, CancellationToken ct)

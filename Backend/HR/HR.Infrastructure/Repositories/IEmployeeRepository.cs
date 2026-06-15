@@ -12,8 +12,22 @@ public interface IEmployeeRepository
         int pageSize,
         CancellationToken ct);
 
+    Task<PagedList<Employee>> GetScopedPageAsync(
+        IReadOnlySet<Guid> allowedIds,
+        EmployeeStatus? status,
+        int page,
+        int pageSize,
+        CancellationToken ct);
+
+    Task<PagedList<Employee>> GetOrganizationWidePageAsync(
+        EmployeeStatus? status,
+        int page,
+        int pageSize,
+        CancellationToken ct);
+
     Task<Employee?> GetByIdAsync(Guid id, CancellationToken ct);
     Task<Employee?> GetByIdWithDetailsAsync(Guid id, CancellationToken ct);
+    Task<Employee?> GetByIdWithDetailsIncludingSoftDeletedAsync(Guid id, CancellationToken ct);
     Task<Employee?> GetByApplicationUserIdWithDetailsAsync(string applicationUserId, CancellationToken ct);
     Task<Employee?> GetByEmployeeNumberWithDetailsAsync(string employeeNumber, CancellationToken ct);
     Task<IReadOnlyList<Employee>> FindByEmailOrEmployeeNumberAsync(string identifier, CancellationToken ct);
@@ -21,11 +35,13 @@ public interface IEmployeeRepository
     Task<IReadOnlyList<Employee>> GetAllActiveAsync(CancellationToken ct);
     Task<IReadOnlySet<Guid>> GetDirectAndIndirectReportIdsAsync(Guid managerId, CancellationToken ct);
     Task<bool> AnyActiveSystemAdministratorAsync(CancellationToken ct);
+    Task<int> GetActiveSystemAdministratorCountAsync(CancellationToken ct);
     Task<bool> ExistsWithEmailAsync(string email, CancellationToken ct);
     Task<bool> ExistsActiveWithEmailAsync(string email, Guid? excludingEmployeeId, CancellationToken ct);
     Task<Guid?> GetManagerIdAsync(Guid employeeId, CancellationToken ct);
     Task<bool> IsAuthenticationEligibleAsync(Guid employeeId, CancellationToken ct);
     Task<bool> ExistsAsync(Guid id, CancellationToken ct);
+    Task<bool> ExistsIncludingSoftDeletedAsync(Guid id, CancellationToken ct);
     Task<bool> ExistsByNumberAsync(string employeeNumber, CancellationToken ct);
     Task AddAsync(Employee employee, CancellationToken ct);
     void Remove(Employee employee);

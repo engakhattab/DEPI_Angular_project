@@ -122,16 +122,16 @@ public class EmployeeRoleControllerTests
         public EmployeeRoleUpdateRequest? Request { get; private set; }
         public Result<EmployeeRoleResponse>? UpdateRoleResult { get; init; }
 
-        public Task<PagedList<EmployeeResponse>> GetEmployeesAsync(EmployeeStatus? status, int page, int pageSize, CancellationToken ct)
+        public Task<Result<PagedList<EmployeeResponse>>> GetEmployeesAsync(Guid requesterEmployeeId, EmployeeStatus? status, int page, int pageSize, CancellationToken ct)
             => throw new NotSupportedException();
 
-        public Task<EmployeeResponse?> GetEmployeeByIdAsync(Guid id, CancellationToken ct)
+        public Task<Result<EmployeeResponse>> GetEmployeeByIdAsync(Guid requesterEmployeeId, Guid id, CancellationToken ct)
             => throw new NotSupportedException();
 
-        public Task<Result<EmployeeCreatedResponse>> CreateEmployeeAsync(EmployeeCreateRequest request, CancellationToken ct)
+        public Task<Result<EmployeeCreatedResponse>> CreateEmployeeAsync(Guid requesterEmployeeId, EmployeeCreateRequest request, CancellationToken ct)
             => throw new NotSupportedException();
 
-        public Task<Result<EmployeeResponse>> UpdateEmployeeAsync(Guid id, EmployeeUpdateRequest request, CancellationToken ct)
+        public Task<Result<EmployeeResponse>> UpdateEmployeeAsync(Guid requesterEmployeeId, Guid id, EmployeeUpdateRequest request, CancellationToken ct)
             => throw new NotSupportedException();
 
         public Task<Result<EmployeeRoleResponse>> UpdateRoleAsync(Guid requesterEmployeeId, Guid id, EmployeeRoleUpdateRequest request, CancellationToken ct)
@@ -142,7 +142,7 @@ public class EmployeeRoleControllerTests
             return Task.FromResult(UpdateRoleResult ?? throw new NotSupportedException());
         }
 
-        public Task<Result> DeleteEmployeeAsync(Guid id, CancellationToken ct)
+        public Task<Result> DeleteEmployeeAsync(Guid requesterEmployeeId, Guid id, CancellationToken ct)
             => throw new NotSupportedException();
     }
 }

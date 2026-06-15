@@ -114,6 +114,57 @@ public class EmployeeRepository(ApplicationDbContext context) : IEmployeeReposit
         return result;
     }
 
+    public Task<PagedList<Employee>> GetScopedPageAsync(
+        IReadOnlySet<Guid> allowedIds,
+        EmployeeStatus? status,
+        int page,
+        int pageSize,
+        CancellationToken ct)
+    {
+        IQueryable<Employee> query = _context.Employees
+            .AsNoTracking()
+            .Include(e => e.Department)
+            .Include(e => e.Manager)
+            .Where(e => allowedIds.Contains(e.Id))
+            .OrderBy(e => e.EmployeeNumber);
+
+        if (status.HasValue)
+        {
+            query = query.Where(e => e.Status == status.Value);
+        }
+
+        return PagedQueryExecutor.ExecuteAsync(query, page, pageSize, ct);
+    }
+
+    public Task<PagedList<Employee>> GetOrganizationWidePageAsync(
+        EmployeeStatus? status,
+        int page,
+        int pageSize,
+        CancellationToken ct)
+    {
+        IQueryable<Employee> query = _context.Employees
+            .AsNoTracking()
+            .Include(e => e.Department)
+            .Include(e => e.Manager)
+            .OrderBy(e => e.EmployeeNumber);
+
+        if (status.HasValue)
+        {
+            query = query.Where(e => e.Status == status.Value);
+        }
+
+        return PagedQueryExecutor.ExecuteAsync(query, page, pageSize, ct);
+    }
+
+    public Task<Employee?> GetByIdWithDetailsIncludingSoftDeletedAsync(Guid id, CancellationToken ct)
+    {
+        return _context.Employees
+            .AsNoTracking()
+            .Include(e => e.Department)
+            .Include(e => e.Manager)
+            .FirstOrDefaultAsync(e => e.Id == id, ct);
+    }
+
     public Task<bool> AnyActiveSystemAdministratorAsync(CancellationToken ct)
     {
         return _context.Employees.AnyAsync(
@@ -121,6 +172,20 @@ public class EmployeeRepository(ApplicationDbContext context) : IEmployeeReposit
                 && e.Status == EmployeeStatus.Active
                 && e.Role == EmployeeRole.SystemAdministrator,
             ct);
+    }
+
+    public Task<int> GetActiveSystemAdministratorCountAsync(CancellationToken ct)
+    {
+        return _context.Employees.CountAsync(
+            e => !e.IsDeleted
+                && e.Status == EmployeeStatus.Active
+                && e.Role == EmployeeRole.SystemAdministrator,
+            ct);
+    }
+
+    public Task<bool> ExistsIncludingSoftDeletedAsync(Guid id, CancellationToken ct)
+    {
+        return _context.Employees.AnyAsync(e => e.Id == id, ct);
     }
 
     public Task<bool> ExistsWithEmailAsync(string email, CancellationToken ct)

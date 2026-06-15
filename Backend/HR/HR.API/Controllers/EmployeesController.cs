@@ -23,20 +23,37 @@ public class EmployeesController(IEmployeeService employeeService) : ControllerB
         [FromQuery] int pageSize = 25,
         CancellationToken cancellationToken = default)
     {
-        var result = await _employeeService.GetEmployeesAsync(status, page, pageSize, cancellationToken);
-        return Ok(result);
+        var requesterId = User.GetEmployeeId();
+        if (!requesterId.HasValue)
+        {
+            return Unauthorized(new { code = "UNAUTHORIZED", message = "Invalid session." });
+        }
+
+        var result = await _employeeService.GetEmployeesAsync(requesterId.Value, status, page, pageSize, cancellationToken);
+        if (!result.IsSuccess)
+        {
+            return this.ToActionResult(result.Error!);
+        }
+
+        return Ok(result.Value);
     }
 
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<EmployeeResponse>> GetEmployee(Guid id, CancellationToken cancellationToken)
     {
-        var employee = await _employeeService.GetEmployeeByIdAsync(id, cancellationToken);
-        if (employee is null)
+        var requesterId = User.GetEmployeeId();
+        if (!requesterId.HasValue)
         {
-            return this.ToActionResult(ServiceError.NotFound($"Employee '{id}' was not found.", "NOT_FOUND"));
+            return Unauthorized(new { code = "UNAUTHORIZED", message = "Invalid session." });
         }
 
-        return Ok(employee);
+        var result = await _employeeService.GetEmployeeByIdAsync(requesterId.Value, id, cancellationToken);
+        if (!result.IsSuccess)
+        {
+            return this.ToActionResult(result.Error!);
+        }
+
+        return Ok(result.Value);
     }
 
     [HttpPost]
@@ -44,12 +61,18 @@ public class EmployeesController(IEmployeeService employeeService) : ControllerB
         [FromBody] EmployeeCreateRequest request,
         CancellationToken cancellationToken)
     {
+        var requesterId = User.GetEmployeeId();
+        if (!requesterId.HasValue)
+        {
+            return Unauthorized(new { code = "UNAUTHORIZED", message = "Invalid session." });
+        }
+
         if (!ModelState.IsValid)
         {
             return ValidationProblem(ModelState);
         }
 
-        var result = await _employeeService.CreateEmployeeAsync(request, cancellationToken);
+        var result = await _employeeService.CreateEmployeeAsync(requesterId.Value, request, cancellationToken);
         if (!result.IsSuccess)
         {
             return this.ToActionResult(result.Error!);
@@ -64,12 +87,18 @@ public class EmployeesController(IEmployeeService employeeService) : ControllerB
         [FromBody] EmployeeUpdateRequest request,
         CancellationToken cancellationToken)
     {
+        var requesterId = User.GetEmployeeId();
+        if (!requesterId.HasValue)
+        {
+            return Unauthorized(new { code = "UNAUTHORIZED", message = "Invalid session." });
+        }
+
         if (!ModelState.IsValid)
         {
             return ValidationProblem(ModelState);
         }
 
-        var result = await _employeeService.UpdateEmployeeAsync(id, request, cancellationToken);
+        var result = await _employeeService.UpdateEmployeeAsync(requesterId.Value, id, request, cancellationToken);
         if (!result.IsSuccess)
         {
             return this.ToActionResult(result.Error!);
@@ -81,7 +110,13 @@ public class EmployeesController(IEmployeeService employeeService) : ControllerB
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> DeleteEmployee(Guid id, CancellationToken cancellationToken)
     {
-        var result = await _employeeService.DeleteEmployeeAsync(id, cancellationToken);
+        var requesterId = User.GetEmployeeId();
+        if (!requesterId.HasValue)
+        {
+            return Unauthorized(new { code = "UNAUTHORIZED", message = "Invalid session." });
+        }
+
+        var result = await _employeeService.DeleteEmployeeAsync(requesterId.Value, id, cancellationToken);
         if (!result.IsSuccess)
         {
             return this.ToActionResult(result.Error!);

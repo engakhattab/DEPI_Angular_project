@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Text.Json;
 using HR.API.Controllers;
 using HR.API.Middleware;
@@ -7,6 +8,7 @@ using HR.Application.DTOs.Departments;
 using HR.Application.DTOs.Employees;
 using HR.Application.Employees;
 using HR.Application.Auth;
+using HR.Domain.Enums;
 using HR.Shared.Pagination;
 using HR.Shared.Results;
 using Microsoft.AspNetCore.Http;
@@ -61,7 +63,19 @@ public class ErrorResponseParityTests
         {
             UpdateResult = Result<EmployeeResponse>.Failure(
                 ServiceError.Validation("Validation failed.", "VALIDATION"))
-        });
+        })
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity(
+                    [
+                        new Claim("employee_id", Guid.NewGuid().ToString())
+                    ], "test"))
+                }
+            }
+        };
 
         var result = await controller.UpdateEmployee(
             Guid.NewGuid(),
@@ -86,7 +100,19 @@ public class ErrorResponseParityTests
         {
             UpdateResult = Result<EmployeeResponse>.Failure(
                 ServiceError.BusinessRule("Business rule failed."))
-        });
+        })
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity(
+                    [
+                        new Claim("employee_id", Guid.NewGuid().ToString())
+                    ], "test"))
+                }
+            }
+        };
 
         var result = await controller.UpdateEmployee(
             Guid.NewGuid(),
@@ -182,22 +208,22 @@ public class ErrorResponseParityTests
     {
         public Result<EmployeeResponse>? UpdateResult { get; init; }
 
-        public Task<PagedList<EmployeeResponse>> GetEmployeesAsync(HR.Domain.Enums.EmployeeStatus? status, int page, int pageSize, CancellationToken ct)
+        public Task<Result<PagedList<EmployeeResponse>>> GetEmployeesAsync(Guid requesterEmployeeId, EmployeeStatus? status, int page, int pageSize, CancellationToken ct)
             => throw new NotSupportedException();
 
-        public Task<EmployeeResponse?> GetEmployeeByIdAsync(Guid id, CancellationToken ct)
+        public Task<Result<EmployeeResponse>> GetEmployeeByIdAsync(Guid requesterEmployeeId, Guid id, CancellationToken ct)
             => throw new NotSupportedException();
 
-        public Task<Result<EmployeeCreatedResponse>> CreateEmployeeAsync(EmployeeCreateRequest request, CancellationToken ct)
+        public Task<Result<EmployeeCreatedResponse>> CreateEmployeeAsync(Guid requesterEmployeeId, EmployeeCreateRequest request, CancellationToken ct)
             => throw new NotSupportedException();
 
-        public Task<Result<EmployeeResponse>> UpdateEmployeeAsync(Guid id, EmployeeUpdateRequest request, CancellationToken ct)
+        public Task<Result<EmployeeResponse>> UpdateEmployeeAsync(Guid requesterEmployeeId, Guid id, EmployeeUpdateRequest request, CancellationToken ct)
             => Task.FromResult(UpdateResult ?? throw new NotSupportedException());
 
         public Task<Result<EmployeeRoleResponse>> UpdateRoleAsync(Guid requesterEmployeeId, Guid id, EmployeeRoleUpdateRequest request, CancellationToken ct)
             => throw new NotSupportedException();
 
-        public Task<Result> DeleteEmployeeAsync(Guid id, CancellationToken ct)
+        public Task<Result> DeleteEmployeeAsync(Guid requesterEmployeeId, Guid id, CancellationToken ct)
             => throw new NotSupportedException();
     }
 }

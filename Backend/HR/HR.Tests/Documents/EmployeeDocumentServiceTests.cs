@@ -230,7 +230,10 @@ public class EmployeeDocumentServiceTests
     {
         public Task<Employee?> GetByIdAsync(Guid id, CancellationToken ct) => Task.FromResult(employee);
         public Task<PagedList<Employee>> GetPageWithDetailsAsync(EmployeeStatus? status, int page, int pageSize, CancellationToken ct) => throw new NotSupportedException();
+        public Task<PagedList<Employee>> GetScopedPageAsync(IReadOnlySet<Guid> allowedIds, EmployeeStatus? status, int page, int pageSize, CancellationToken ct) => throw new NotSupportedException();
+        public Task<PagedList<Employee>> GetOrganizationWidePageAsync(EmployeeStatus? status, int page, int pageSize, CancellationToken ct) => throw new NotSupportedException();
         public Task<Employee?> GetByIdWithDetailsAsync(Guid id, CancellationToken ct) => throw new NotSupportedException();
+        public Task<Employee?> GetByIdWithDetailsIncludingSoftDeletedAsync(Guid id, CancellationToken ct) => throw new NotSupportedException();
         public Task<Employee?> GetByApplicationUserIdWithDetailsAsync(string applicationUserId, CancellationToken ct) => throw new NotSupportedException();
         public Task<Employee?> GetByEmployeeNumberWithDetailsAsync(string employeeNumber, CancellationToken ct) => throw new NotSupportedException();
         public Task<IReadOnlyList<Employee>> FindByEmailOrEmployeeNumberAsync(string identifier, CancellationToken ct) => throw new NotSupportedException();
@@ -238,11 +241,13 @@ public class EmployeeDocumentServiceTests
         public Task<IReadOnlyList<Employee>> GetAllActiveAsync(CancellationToken ct) => throw new NotSupportedException();
         public Task<IReadOnlySet<Guid>> GetDirectAndIndirectReportIdsAsync(Guid managerId, CancellationToken ct) => throw new NotSupportedException();
         public Task<bool> AnyActiveSystemAdministratorAsync(CancellationToken ct) => throw new NotSupportedException();
+        public Task<int> GetActiveSystemAdministratorCountAsync(CancellationToken ct) => throw new NotSupportedException();
         public Task<bool> ExistsWithEmailAsync(string email, CancellationToken ct) => throw new NotSupportedException();
         public Task<bool> ExistsActiveWithEmailAsync(string email, Guid? excludingEmployeeId, CancellationToken ct) => throw new NotSupportedException();
         public Task<Guid?> GetManagerIdAsync(Guid employeeId, CancellationToken ct) => throw new NotSupportedException();
         public Task<bool> IsAuthenticationEligibleAsync(Guid employeeId, CancellationToken ct) => throw new NotSupportedException();
         public Task<bool> ExistsAsync(Guid id, CancellationToken ct) => throw new NotSupportedException();
+        public Task<bool> ExistsIncludingSoftDeletedAsync(Guid id, CancellationToken ct) => throw new NotSupportedException();
         public Task<bool> ExistsByNumberAsync(string employeeNumber, CancellationToken ct) => throw new NotSupportedException();
         public Task AddAsync(Employee employee, CancellationToken ct) => throw new NotSupportedException();
         public void Remove(Employee employee) => throw new NotSupportedException();
@@ -251,8 +256,14 @@ public class EmployeeDocumentServiceTests
     private sealed class AllowingAccessService : IEmployeeAccessService
     {
         public Task<Result<EmployeeAccessContext>> GetCurrentAsync(Guid employeeId, CancellationToken ct) => throw new NotSupportedException();
+        public bool IsSelf(Guid requesterEmployeeId, Guid targetEmployeeId) => requesterEmployeeId == targetEmployeeId;
+        public Task<bool> IsManagerOfAsync(Guid requesterEmployeeId, Guid targetEmployeeId, CancellationToken ct) => Task.FromResult(true);
+        public Task<bool> CanAccessEmployeeAsync(Guid requesterEmployeeId, Guid targetEmployeeId, CancellationToken ct) => Task.FromResult(true);
+        public Task<bool> CanAccessTeamDataAsync(Guid requesterEmployeeId, Guid targetEmployeeId, CancellationToken ct) => Task.FromResult(true);
         public Task<bool> HasAnyRoleAsync(Guid employeeId, CancellationToken ct, params EmployeeRole[] roles) => Task.FromResult(true);
-        public Task<bool> CanAccessEmployeeAsync(Guid requesterEmployeeId, Guid targetEmployeeId, CancellationToken ct) => throw new NotSupportedException();
+        public Task<bool> IsHRAdministratorAsync(Guid employeeId, CancellationToken ct) => Task.FromResult(true);
+        public Task<bool> IsSystemAdministratorAsync(Guid employeeId, CancellationToken ct) => Task.FromResult(true);
+        public Task<bool> HasOrganizationScopeAsync(Guid employeeId, CancellationToken ct) => Task.FromResult(true);
         public Task<IReadOnlySet<Guid>> GetVisibleEmployeeIdsAsync(Guid requesterEmployeeId, CancellationToken ct) => throw new NotSupportedException();
     }
 

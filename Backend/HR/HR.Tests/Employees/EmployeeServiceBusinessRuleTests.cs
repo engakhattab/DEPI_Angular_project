@@ -22,6 +22,7 @@ public class EmployeeServiceBusinessRuleTests
         var employee = await fixture.AddEmployeeAsync("EMP-802", "second@example.com");
 
         var result = await fixture.Service.UpdateEmployeeAsync(
+            fixture.AdminId,
             employee.Id,
             fixture.BuildUpdateRequest(employee, email: "first@example.com"),
             CancellationToken.None);
@@ -38,6 +39,7 @@ public class EmployeeServiceBusinessRuleTests
         var report = await fixture.AddEmployeeAsync("EMP-804", "report804@example.com", managerId: manager.Id);
 
         var result = await fixture.Service.UpdateEmployeeAsync(
+            fixture.AdminId,
             manager.Id,
             fixture.BuildUpdateRequest(manager, managerId: report.Id),
             CancellationToken.None);
@@ -55,6 +57,7 @@ public class EmployeeServiceBusinessRuleTests
         var employee = await fixture.AddEmployeeAsync("EMP-806", "employee806@example.com");
 
         var result = await fixture.Service.UpdateEmployeeAsync(
+            fixture.AdminId,
             employee.Id,
             fixture.BuildUpdateRequest(employee, managerId: manager.Id, status: EmployeeStatus.Active),
             CancellationToken.None);
@@ -75,6 +78,7 @@ public class EmployeeServiceBusinessRuleTests
         var service = fixture.CreateService(logger);
 
         var result = await service.CreateEmployeeAsync(
+            fixture.AdminId,
             new EmployeeCreateRequest
             {
                 EmployeeNumber = "EMP-815",
@@ -102,6 +106,7 @@ public class EmployeeServiceBusinessRuleTests
         var originalNumber = employee.EmployeeNumber;
 
         var result = await fixture.Service.UpdateEmployeeAsync(
+            fixture.AdminId,
             employee.Id,
             fixture.BuildUpdateRequest(employee, status: EmployeeStatus.Terminated),
             CancellationToken.None);
@@ -126,6 +131,7 @@ public class EmployeeServiceBusinessRuleTests
             terminatedAt: fixture.UtcNow.AddDays(-1));
 
         var result = await fixture.Service.UpdateEmployeeAsync(
+            fixture.AdminId,
             employee.Id,
             fixture.BuildUpdateRequest(employee, status: EmployeeStatus.Active),
             CancellationToken.None);
@@ -145,6 +151,7 @@ public class EmployeeServiceBusinessRuleTests
             terminatedAt: fixture.UtcNow.AddDays(-1));
 
         var result = await fixture.Service.UpdateEmployeeAsync(
+            fixture.AdminId,
             employee.Id,
             fixture.BuildUpdateRequest(employee, status: EmployeeStatus.Terminated),
             CancellationToken.None);
@@ -160,6 +167,7 @@ public class EmployeeServiceBusinessRuleTests
         var employee = await fixture.AddEmployeeAsync("EMP-817", "employee817@example.com");
 
         var result = await fixture.Service.UpdateEmployeeAsync(
+            fixture.AdminId,
             employee.Id,
             fixture.BuildUpdateRequest(employee, email: "employee817-updated@example.com"),
             CancellationToken.None);
@@ -177,7 +185,7 @@ public class EmployeeServiceBusinessRuleTests
         var report = await fixture.AddEmployeeAsync("EMP-810", "report810@example.com", managerId: manager.Id);
         await fixture.Environment.AddVacationRequestAsync(manager.Id, VacationRequestStatus.Pending, fixture.UtcNow);
 
-        var result = await fixture.Service.DeleteEmployeeAsync(manager.Id, CancellationToken.None);
+        var result = await fixture.Service.DeleteEmployeeAsync(fixture.AdminId, manager.Id, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         fixture.Environment.Context.ChangeTracker.Clear();
@@ -195,28 +203,30 @@ public class EmployeeServiceBusinessRuleTests
     }
 
     [Fact]
-    public async Task GetEmployeesAsync_ExcludesSoftDeletedButRetainsTerminatedVisibleProfiles()
+    public async Task GetEmployeesAsync_AdminOrgWideScopeIncludesSoftDeleted()
     {
         await using var fixture = await EmployeeFixture.CreateAsync();
         await fixture.AddEmployeeAsync("EMP-811", "active811@example.com");
         await fixture.AddEmployeeAsync("EMP-812", "terminated812@example.com", status: EmployeeStatus.Terminated, terminatedAt: fixture.UtcNow);
         await fixture.AddEmployeeAsync("EMP-813", "deleted813@example.com", isDeleted: true, status: EmployeeStatus.Terminated, terminatedAt: fixture.UtcNow);
 
-        var result = await fixture.Service.GetEmployeesAsync(null, 1, 25, CancellationToken.None);
+        var result = await fixture.Service.GetEmployeesAsync(fixture.AdminId, null, 1, 25, CancellationToken.None);
 
-        Assert.Contains(result.Items, e => e.EmployeeNumber == "EMP-811");
-        Assert.Contains(result.Items, e => e.EmployeeNumber == "EMP-812");
-        Assert.DoesNotContain(result.Items, e => e.EmployeeNumber == "EMP-813");
+        Assert.True(result.IsSuccess);
+        Assert.Contains(result.Value!.Items, e => e.EmployeeNumber == "EMP-811");
+        Assert.Contains(result.Value.Items, e => e.EmployeeNumber == "EMP-812");
+        Assert.Contains(result.Value.Items, e => e.EmployeeNumber == "EMP-813");
     }
 
     private sealed class EmployeeFixture : IAsyncDisposable
     {
         private readonly SqliteTestEnvironment _environment;
 
-        private EmployeeFixture(SqliteTestEnvironment environment, DateTimeOffset utcNow)
+        private EmployeeFixture(SqliteTestEnvironment environment, DateTimeOffset utcNow, Guid adminId)
         {
             _environment = environment;
             UtcNow = utcNow;
+            AdminId = adminId;
             Service = environment.GetRequiredService<IEmployeeService>();
         }
 
@@ -225,6 +235,8 @@ public class EmployeeServiceBusinessRuleTests
         public IEmployeeService Service { get; }
 
         public DateTimeOffset UtcNow { get; }
+
+        public Guid AdminId { get; }
 
         public EmployeeService CreateService(ILogger<EmployeeService> logger)
         {
@@ -245,7 +257,11 @@ public class EmployeeServiceBusinessRuleTests
             var environment = await SqliteTestEnvironment.CreateAsync(
                 seedDefaultDepartment: true,
                 timeProvider: new TestTimeProvider(utcNow));
-            return new EmployeeFixture(environment, utcNow);
+            var admin = await environment.AddEmployeeAsync(
+                "ADMIN-001", "admin@example.com",
+                environment.DefaultDepartment!.Id,
+                role: EmployeeRole.SystemAdministrator);
+            return new EmployeeFixture(environment, utcNow, admin.Id);
         }
 
         public Task<Employee> AddEmployeeAsync(

@@ -9,6 +9,82 @@ public class EmployeeAccessService(IEmployeeRepository employeeRepository) : IEm
 {
     private readonly IEmployeeRepository _employeeRepository = employeeRepository;
 
+    public bool IsSelf(Guid requesterEmployeeId, Guid targetEmployeeId)
+    {
+        return requesterEmployeeId == targetEmployeeId;
+    }
+
+    public async Task<bool> IsManagerOfAsync(Guid requesterEmployeeId, Guid targetEmployeeId, CancellationToken ct)
+    {
+        var requester = await _employeeRepository.GetByIdAsync(requesterEmployeeId, ct);
+        if (requester is null || requester.IsDeleted || requester.Status == EmployeeStatus.Terminated)
+        {
+            return false;
+        }
+
+        if (requester.Role != EmployeeRole.Manager)
+        {
+            return false;
+        }
+
+        var reports = await _employeeRepository.GetDirectAndIndirectReportIdsAsync(requesterEmployeeId, ct);
+        return reports.Contains(targetEmployeeId);
+    }
+
+    public async Task<bool> CanAccessTeamDataAsync(Guid requesterEmployeeId, Guid targetEmployeeId, CancellationToken ct)
+    {
+        var requester = await _employeeRepository.GetByIdAsync(requesterEmployeeId, ct);
+        if (requester is null || requester.IsDeleted || requester.Status == EmployeeStatus.Terminated)
+        {
+            return false;
+        }
+
+        if (requester.Role is EmployeeRole.HRAdministrator or EmployeeRole.SystemAdministrator)
+        {
+            return true;
+        }
+
+        if (requester.Role != EmployeeRole.Manager)
+        {
+            return false;
+        }
+
+        if (requester.Id == targetEmployeeId)
+        {
+            return true;
+        }
+
+        var reports = await _employeeRepository.GetDirectAndIndirectReportIdsAsync(requesterEmployeeId, ct);
+        return reports.Contains(targetEmployeeId);
+    }
+
+    public async Task<bool> IsHRAdministratorAsync(Guid employeeId, CancellationToken ct)
+    {
+        var employee = await _employeeRepository.GetByIdAsync(employeeId, ct);
+        return employee is not null
+            && !employee.IsDeleted
+            && employee.Status != EmployeeStatus.Terminated
+            && employee.Role == EmployeeRole.HRAdministrator;
+    }
+
+    public async Task<bool> IsSystemAdministratorAsync(Guid employeeId, CancellationToken ct)
+    {
+        var employee = await _employeeRepository.GetByIdAsync(employeeId, ct);
+        return employee is not null
+            && !employee.IsDeleted
+            && employee.Status != EmployeeStatus.Terminated
+            && employee.Role == EmployeeRole.SystemAdministrator;
+    }
+
+    public async Task<bool> HasOrganizationScopeAsync(Guid employeeId, CancellationToken ct)
+    {
+        var employee = await _employeeRepository.GetByIdAsync(employeeId, ct);
+        return employee is not null
+            && !employee.IsDeleted
+            && employee.Status != EmployeeStatus.Terminated
+            && employee.Role is EmployeeRole.HRAdministrator or EmployeeRole.SystemAdministrator;
+    }
+
     public async Task<Result<EmployeeAccessContext>> GetCurrentAsync(Guid employeeId, CancellationToken ct)
     {
         var employee = await _employeeRepository.GetByIdAsync(employeeId, ct);
@@ -43,18 +119,17 @@ public class EmployeeAccessService(IEmployeeRepository employeeRepository) : IEm
             return false;
         }
 
-        if (requester.Id == targetEmployeeId || requester.Role is EmployeeRole.HRAdministrator or EmployeeRole.SystemAdministrator)
+        if (IsSelf(requesterEmployeeId, targetEmployeeId))
         {
             return true;
         }
 
-        if (requester.Role != EmployeeRole.Manager)
+        if (requester.Role is EmployeeRole.HRAdministrator or EmployeeRole.SystemAdministrator)
         {
-            return false;
+            return true;
         }
 
-        var reports = await _employeeRepository.GetDirectAndIndirectReportIdsAsync(requesterEmployeeId, ct);
-        return reports.Contains(targetEmployeeId);
+        return await IsManagerOfAsync(requesterEmployeeId, targetEmployeeId, ct);
     }
 
     public async Task<IReadOnlySet<Guid>> GetVisibleEmployeeIdsAsync(Guid requesterEmployeeId, CancellationToken ct)

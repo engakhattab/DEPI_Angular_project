@@ -33,36 +33,128 @@ public class EmployeeService(
     private readonly TimeProvider _timeProvider = timeProvider;
     private readonly IAuditWriter? _auditWriter = auditWriter;
 
-    public async Task<PagedList<EmployeeResponse>> GetEmployeesAsync(
+    public async Task<Result<PagedList<EmployeeResponse>>> GetEmployeesAsync(
+        Guid requesterEmployeeId,
         EmployeeStatus? status,
         int page,
         int pageSize,
         CancellationToken ct)
     {
-        var pagedEmployees = await _employeeRepository.GetPageWithDetailsAsync(status, page, pageSize, ct);
+        var requester = await _employeeRepository.GetByIdAsync(requesterEmployeeId, ct);
+        var authError = ValidateRequester(requester);
+        if (authError is not null)
+        {
+            return Result<PagedList<EmployeeResponse>>.Failure(authError);
+        }
+
+        PagedList<Employee> pagedEmployees;
+        switch (requester!.Role)
+        {
+            case EmployeeRole.Employee:
+                return Result<PagedList<EmployeeResponse>>.Failure(ServiceError.Forbidden());
+
+            case EmployeeRole.Manager:
+                var teamIds = await _employeeRepository.GetDirectAndIndirectReportIdsAsync(requester.Id, ct);
+                pagedEmployees = await _employeeRepository.GetScopedPageAsync(teamIds, status, page, pageSize, ct);
+                break;
+
+            case EmployeeRole.HRAdministrator:
+            case EmployeeRole.SystemAdministrator:
+                pagedEmployees = await _employeeRepository.GetOrganizationWidePageAsync(status, page, pageSize, ct);
+                break;
+
+            default:
+                return Result<PagedList<EmployeeResponse>>.Failure(ServiceError.Forbidden());
+        }
+
         var userIds = pagedEmployees.Items.Select(e => e.ApplicationUserId).Distinct().ToList();
         var userDict = await _identityUserLookup.GetByIdsAsync(userIds, ct);
         var items = pagedEmployees.Items
             .Select(e => MapToResponse(e, userDict.GetValueOrDefault(e.ApplicationUserId)))
             .ToList();
 
-        return new PagedList<EmployeeResponse>(items, pagedEmployees.TotalCount, pagedEmployees.Page, pagedEmployees.PageSize);
+        return Result<PagedList<EmployeeResponse>>.Success(
+            new PagedList<EmployeeResponse>(items, pagedEmployees.TotalCount, pagedEmployees.Page, pagedEmployees.PageSize));
     }
 
-    public async Task<EmployeeResponse?> GetEmployeeByIdAsync(Guid id, CancellationToken ct)
+    public async Task<Result<EmployeeResponse>> GetEmployeeByIdAsync(
+        Guid requesterEmployeeId,
+        Guid id,
+        CancellationToken ct)
     {
-        var employee = await _employeeRepository.GetByIdWithDetailsAsync(id, ct);
+        var requester = await _employeeRepository.GetByIdAsync(requesterEmployeeId, ct);
+        var authError = ValidateRequester(requester);
+        if (authError is not null)
+        {
+            return Result<EmployeeResponse>.Failure(authError);
+        }
+
+        var targetExists = await _employeeRepository.ExistsIncludingSoftDeletedAsync(id, ct);
+        if (!targetExists)
+        {
+            return Result<EmployeeResponse>.Failure(
+                ServiceError.NotFound($"Employee '{id}' was not found.", "NOT_FOUND"));
+        }
+
+        switch (requester!.Role)
+        {
+            case EmployeeRole.Employee:
+                if (requester.Id != id)
+                {
+                    return Result<EmployeeResponse>.Failure(ServiceError.Forbidden());
+                }
+                break;
+
+            case EmployeeRole.Manager:
+                if (requester.Id != id)
+                {
+                    var teamIds = await _employeeRepository.GetDirectAndIndirectReportIdsAsync(requester.Id, ct);
+                    if (!teamIds.Contains(id))
+                    {
+                        return Result<EmployeeResponse>.Failure(ServiceError.Forbidden());
+                    }
+                }
+                break;
+
+            case EmployeeRole.HRAdministrator:
+            case EmployeeRole.SystemAdministrator:
+                break;
+
+            default:
+                return Result<EmployeeResponse>.Failure(ServiceError.Forbidden());
+        }
+
+        Employee? employee;
+        if (requester.Role is EmployeeRole.HRAdministrator or EmployeeRole.SystemAdministrator)
+        {
+            employee = await _employeeRepository.GetByIdWithDetailsIncludingSoftDeletedAsync(id, ct);
+        }
+        else
+        {
+            employee = await _employeeRepository.GetByIdWithDetailsAsync(id, ct);
+        }
+
         if (employee is null)
         {
-            return null;
+            return Result<EmployeeResponse>.Failure(
+                ServiceError.NotFound($"Employee '{id}' was not found.", "NOT_FOUND"));
         }
 
         var user = await _identityUserLookup.GetByIdAsync(employee.ApplicationUserId, ct);
-        return MapToResponse(employee, user);
+        return Result<EmployeeResponse>.Success(MapToResponse(employee, user));
     }
 
-    public async Task<Result<EmployeeCreatedResponse>> CreateEmployeeAsync(EmployeeCreateRequest request, CancellationToken ct)
+    public async Task<Result<EmployeeCreatedResponse>> CreateEmployeeAsync(
+        Guid requesterEmployeeId,
+        EmployeeCreateRequest request,
+        CancellationToken ct)
     {
+        var authError = await CheckWriteAuthorizationAsync(requesterEmployeeId, ct);
+        if (authError is not null)
+        {
+            return Result<EmployeeCreatedResponse>.Failure(authError);
+        }
+
         if (await _employeeRepository.ExistsByNumberAsync(request.EmployeeNumber, ct))
         {
             return Result<EmployeeCreatedResponse>.Failure(
@@ -172,13 +264,44 @@ public class EmployeeService(
         });
     }
 
-    public async Task<Result<EmployeeResponse>> UpdateEmployeeAsync(Guid id, EmployeeUpdateRequest request, CancellationToken ct)
+    public async Task<Result<EmployeeResponse>> UpdateEmployeeAsync(
+        Guid requesterEmployeeId,
+        Guid id,
+        EmployeeUpdateRequest request,
+        CancellationToken ct)
     {
-        var employee = await _employeeRepository.GetByIdAsync(id, ct);
-        if (employee is null || employee.IsDeleted)
+        var roleAuthError = await CheckWriteAuthorizationAsync(requesterEmployeeId, ct);
+        if (roleAuthError is not null)
+        {
+            return Result<EmployeeResponse>.Failure(roleAuthError);
+        }
+
+        var target = await _employeeRepository.GetByIdAsync(id, ct);
+        if (target is null)
         {
             return Result<EmployeeResponse>.Failure(
                 ServiceError.NotFound($"Employee '{id}' was not found.", "NOT_FOUND"));
+        }
+
+        var authError = await CheckWriteAuthorizationAsync(requesterEmployeeId, id, target, ct);
+        if (authError is not null)
+        {
+            return Result<EmployeeResponse>.Failure(authError);
+        }
+
+        if (target.IsDeleted)
+        {
+            return Result<EmployeeResponse>.Failure(
+                ServiceError.NotFound($"Employee '{id}' was not found.", "NOT_FOUND"));
+        }
+
+        if (IsLastAdminRemoval(target) && target.Status != request.Status)
+        {
+            var lastAdminError = await CheckLastAdminRemovalAsync(ct);
+            if (lastAdminError is not null)
+            {
+                return Result<EmployeeResponse>.Failure(lastAdminError);
+            }
         }
 
         if (request.ManagerId.HasValue && request.ManagerId.Value == id)
@@ -218,11 +341,11 @@ public class EmployeeService(
                 ServiceError.Conflict("An active employee with this email already exists.", "CONFLICT"));
         }
 
-        if (employee.Status != request.Status && !IsAllowedStatusTransition(employee.Status, request.Status))
+        if (target.Status != request.Status && !IsAllowedStatusTransition(target.Status, request.Status))
         {
             return Result<EmployeeResponse>.Failure(
                 ServiceError.BusinessRule(
-                    $"Cannot transition an employee from '{employee.Status}' to '{request.Status}'."));
+                    $"Cannot transition an employee from '{target.Status}' to '{request.Status}'."));
         }
 
         if (manager is not null && manager.DepartmentId != request.DepartmentId)
@@ -233,22 +356,22 @@ public class EmployeeService(
                 manager.Id);
         }
 
-        var shouldTerminate = employee.Status != EmployeeStatus.Terminated && request.Status == EmployeeStatus.Terminated;
+        var shouldTerminate = target.Status != EmployeeStatus.Terminated && request.Status == EmployeeStatus.Terminated;
 
-        employee.FullName = request.FullName;
-        employee.Email = request.Email;
-        employee.DepartmentId = request.DepartmentId;
-        employee.ManagerId = request.ManagerId;
-        employee.BirthDate = request.BirthDate;
-        employee.JoinDate = request.JoinDate;
-        employee.JobTitle = request.JobTitle;
-        employee.PhoneNumber = request.PhoneNumber;
-        employee.Notes = request.Notes;
-        employee.Status = request.Status;
+        target.FullName = request.FullName;
+        target.Email = request.Email;
+        target.DepartmentId = request.DepartmentId;
+        target.ManagerId = request.ManagerId;
+        target.BirthDate = request.BirthDate;
+        target.JoinDate = request.JoinDate;
+        target.JobTitle = request.JobTitle;
+        target.PhoneNumber = request.PhoneNumber;
+        target.Notes = request.Notes;
+        target.Status = request.Status;
 
         if (shouldTerminate)
         {
-            employee.TerminatedAt ??= _timeProvider.GetUtcNow();
+            target.TerminatedAt ??= _timeProvider.GetUtcNow();
 
             var pendingRequests = await _vacationRequestRepository.GetPendingByEmployeeIdAsync(id, ct);
             foreach (var pendingRequest in pendingRequests)
@@ -262,7 +385,7 @@ public class EmployeeService(
 
         await using var transaction = await _unitOfWork.BeginTransactionAsync(ct);
 
-        user = await _userManager.FindByIdAsync(employee.ApplicationUserId);
+        user = await _userManager.FindByIdAsync(target.ApplicationUserId);
         if (user is not null && !string.Equals(user.Email, request.Email, StringComparison.OrdinalIgnoreCase))
         {
             user.Email = request.Email;
@@ -279,10 +402,10 @@ public class EmployeeService(
         await _unitOfWork.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
 
-        employee.Department = department;
-        employee.Manager = manager;
-        user = await _userManager.FindByIdAsync(employee.ApplicationUserId);
-        return Result<EmployeeResponse>.Success(MapToResponse(employee, user));
+        target.Department = department;
+        target.Manager = manager;
+        user = await _userManager.FindByIdAsync(target.ApplicationUserId);
+        return Result<EmployeeResponse>.Success(MapToResponse(target, user));
     }
 
     public async Task<Result<EmployeeRoleResponse>> UpdateRoleAsync(
@@ -320,6 +443,16 @@ public class EmployeeService(
             });
         }
 
+        if (previous == EmployeeRole.SystemAdministrator && request.Role != EmployeeRole.SystemAdministrator)
+        {
+            var activeAdminCount = await _employeeRepository.GetActiveSystemAdministratorCountAsync(ct);
+            if (activeAdminCount <= 1)
+            {
+                return Result<EmployeeRoleResponse>.Failure(
+                    ServiceError.BusinessRule("Cannot demote the last active SystemAdministrator."));
+            }
+        }
+
         employee.Role = request.Role;
         if (_auditWriter is not null)
         {
@@ -345,17 +478,41 @@ public class EmployeeService(
         });
     }
 
-    public async Task<Result> DeleteEmployeeAsync(Guid id, CancellationToken ct)
+    public async Task<Result> DeleteEmployeeAsync(
+        Guid requesterEmployeeId,
+        Guid id,
+        CancellationToken ct)
     {
-        var employee = await _employeeRepository.GetByIdAsync(id, ct);
-        if (employee is null)
+        var roleAuthError = await CheckWriteAuthorizationAsync(requesterEmployeeId, ct);
+        if (roleAuthError is not null)
+        {
+            return Result.Failure(roleAuthError);
+        }
+
+        var target = await _employeeRepository.GetByIdAsync(id, ct);
+        if (target is null)
         {
             return Result.Failure(ServiceError.NotFound($"Employee '{id}' was not found.", "NOT_FOUND"));
         }
 
-        if (employee.IsDeleted)
+        var authError = await CheckWriteAuthorizationAsync(requesterEmployeeId, id, target, ct);
+        if (authError is not null)
+        {
+            return Result.Failure(authError);
+        }
+
+        if (target.IsDeleted)
         {
             return Result.Success();
+        }
+
+        if (IsLastAdminRemoval(target))
+        {
+            var lastAdminError = await CheckLastAdminRemovalAsync(ct);
+            if (lastAdminError is not null)
+            {
+                return Result.Failure(lastAdminError);
+            }
         }
 
         var directReports = await _employeeRepository.GetDirectReportsAsync(id, ct);
@@ -373,13 +530,91 @@ public class EmployeeService(
             request.UpdatedAt = _timeProvider.GetUtcNow();
         }
 
-        employee.IsDeleted = true;
-        employee.Status = EmployeeStatus.Terminated;
-        employee.TerminatedAt ??= _timeProvider.GetUtcNow();
+        target.IsDeleted = true;
+        target.Status = EmployeeStatus.Terminated;
+        target.TerminatedAt ??= _timeProvider.GetUtcNow();
 
         await _unitOfWork.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
         return Result.Success();
+    }
+
+    private static ServiceError? ValidateRequester(Employee? requester)
+    {
+        if (requester is null || requester.IsDeleted)
+        {
+            return ServiceError.Unauthorized("Invalid session.");
+        }
+
+        if (requester.Status == EmployeeStatus.Terminated)
+        {
+            return ServiceError.Unauthorized("Invalid session.");
+        }
+
+        return null;
+    }
+
+    private async Task<ServiceError?> CheckWriteAuthorizationAsync(
+        Guid requesterEmployeeId,
+        CancellationToken ct)
+    {
+        var requester = await _employeeRepository.GetByIdAsync(requesterEmployeeId, ct);
+        var authError = ValidateRequester(requester);
+        if (authError is not null)
+        {
+            return authError;
+        }
+
+        if (requester!.Role is not (EmployeeRole.HRAdministrator or EmployeeRole.SystemAdministrator))
+        {
+            return ServiceError.Forbidden();
+        }
+
+        return null;
+    }
+
+    private async Task<ServiceError?> CheckWriteAuthorizationAsync(
+        Guid requesterEmployeeId,
+        Guid targetId,
+        Employee target,
+        CancellationToken ct)
+    {
+        var requester = await _employeeRepository.GetByIdAsync(requesterEmployeeId, ct);
+        var authError = ValidateRequester(requester);
+        if (authError is not null)
+        {
+            return authError;
+        }
+
+        if (requester!.Role is not (EmployeeRole.HRAdministrator or EmployeeRole.SystemAdministrator))
+        {
+            return ServiceError.Forbidden();
+        }
+
+        if (requester.Role == EmployeeRole.HRAdministrator && target.Role == EmployeeRole.SystemAdministrator)
+        {
+            return ServiceError.Forbidden();
+        }
+
+        return null;
+    }
+
+    private async Task<ServiceError?> CheckLastAdminRemovalAsync(CancellationToken ct)
+    {
+        var activeAdminCount = await _employeeRepository.GetActiveSystemAdministratorCountAsync(ct);
+        if (activeAdminCount <= 1)
+        {
+            return ServiceError.BusinessRule("Cannot remove the last active SystemAdministrator.");
+        }
+
+        return null;
+    }
+
+    private static bool IsLastAdminRemoval(Employee target)
+    {
+        return target.Role == EmployeeRole.SystemAdministrator
+            && target.Status == EmployeeStatus.Active
+            && !target.IsDeleted;
     }
 
     private EmployeeResponse MapToResponse(Employee employee, ApplicationUser? user)
