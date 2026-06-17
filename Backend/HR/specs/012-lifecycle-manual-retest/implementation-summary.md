@@ -186,9 +186,9 @@ No new files under `HR.Infrastructure/Data/Migrations/` beyond the 5 approved mi
 
 - [X] T065: Stale "authenticated user can access everything" wording search completed. Found in `PLAN.md` (non-stale, historical reference) and Phase 11/10 spec/contract files (expected context). No stale wording remains in `API_LIFECYCLE_TESTING_GUIDE.md` or `CLIENT_INSTALLATION_GUIDE.md`.
 - [X] T066: `git diff --check` - Passed (no whitespace errors, only expected LF/CRLF warnings on Windows).
-- [X] T067: `git status --short` confirmed no source/migration files were changed by Phase 12. Only `API_LIFECYCLE_TESTING_GUIDE.md`, `CLIENT_INSTALLATION_GUIDE.md`, and `specs/012-lifecycle-manual-retest/` artifacts changed/added.
+- [X] T067: `git status --short` confirmed the current uncommitted Phase 12 changes are documentation/spec artifacts only: `API_LIFECYCLE_TESTING_GUIDE.md`, `specs/012-lifecycle-manual-retest/implementation-summary.md`, and `specs/012-lifecycle-manual-retest/manual-retest-checklist.md`.
 - [X] T068: Final EF pending model check - Passed. No changes have been made to the model since the last migration.
-- [X] T069: All 56 checklist rows have expected and actual results or a blocked reason.
+- [X] T069: All 64 checklist rows have expected and actual results or a blocked reason: 8 command rows plus 56 manual scenario rows.
 - [X] T070: Tasks marked complete in tasks.md
 
 ---

@@ -16,7 +16,7 @@
 | CMD-005 | Setup | `dotnet ef migrations list --project .\HR.Infrastructure\HR.Infrastructure.csproj --startup-project .\HR.API\HR.API.csproj` | 5 approved migrations | 5 approved migrations | Pass | |
 | CMD-006 | Setup | `dotnet ef migrations has-pending-model-changes ...` | No pending changes | No pending changes | Pass | |
 | CMD-007 | Setup | `git diff --check` | No whitespace errors | No whitespace errors | Pass | |
-| CMD-008 | Setup | `git status --short` | Only doc/spec artifacts changed | Only doc/spec artifacts changed | Pass | |
+| CMD-008 | Setup | `git status --short` | Phase 12 changed only documentation/spec artifacts | Phase 12 changed only documentation/spec artifacts | Pass | |
 
 ## AUTH Scenarios
 
@@ -48,7 +48,7 @@
 |----|--------|-------|---------------|-------|----------|--------|--------|-------|
 | VAC-001 | Vacations | EMP004 | `POST /api/vacationrequests` (self) | EMP004 logged in | 201, own request created | 201 | Pass | |
 | VAC-002 | Vacations | EMP004 | `GET /api/vacationrequests` | EMP004 logged in | 200, own-only list | 200 | Pass | |
-| VAC-003 | Vacations | EMP004 | `GET /api/vacationrequests/{other}` | EMP004 logged in | 403 or 404 | 404 | Pass | |
+| VAC-003 | Vacations | EMP004 | `GET /api/vacationrequests/{other}` | EMP004 logged in | 404, `{code, message}` | 404 | Pass | |
 | VAC-004 | Vacations | EMP003 | `GET /api/vacationrequests` (team) | EMP003 logged in | 200, team-only list | 200 | Pass | |
 | VAC-005 | Vacations | EMP003 | `PUT /api/vacationrequests/{id}/status` (team) | EMP003 logged in, VAC-001 ID | 200, approved | 200 | Pass | |
 | VAC-006 | Vacations | EMP003 | `PUT /api/vacationrequests/{id}/status` (self) | EMP003 logged in, own request | 422 (self-review blocked) | 422 | Pass | |

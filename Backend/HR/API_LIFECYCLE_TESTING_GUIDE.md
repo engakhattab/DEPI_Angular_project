@@ -68,7 +68,7 @@ dotnet ef database update --project .\HR.Infrastructure\HR.Infrastructure.csproj
 dotnet ef migrations has-pending-model-changes --project .\HR.Infrastructure\HR.Infrastructure.csproj --startup-project .\HR.API\HR.API.csproj
 ```
 
-The approved migration list through Phase 12:
+The approved migration list through Phase 11 required for Phase 12 retest:
 
 ```text
 20251114215718_InitialCreate
@@ -659,7 +659,7 @@ GET /api/audit-logs?page=1&pageSize=25
 Forbidden tests:
 
 ```http
-PUT /api/employees/<SYSTEM_ADMIN_EMPLOYEE_ID>/update
+PUT /api/employees/<SYSTEM_ADMIN_EMPLOYEE_ID>
 PUT /api/employees/<EMPLOYEE_ID>/role
 ```
 
