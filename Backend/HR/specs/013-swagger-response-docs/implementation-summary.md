@@ -20,6 +20,11 @@
 - `HR.API/Controllers/DashboardController.cs` (response metadata added)
 - `HR.API/Controllers/AuditLogsController.cs` (response metadata added)
 
+## Review-Time Corrections
+
+- `HR.API/Documentation/ErrorResponseDocumentation.cs` now uses non-null string properties with empty defaults so Swagger represents the existing structured `{ code, message }` payload as required fields instead of nullable placeholders.
+- `HR.API/Controllers/EmployeeDocumentsController.cs` now documents document download success as `application/octet-stream` with a byte-array payload schema, while preserving the existing file download runtime behavior.
+
 ## Validation Commands
 
 ### Pre-Implementation Build
@@ -57,10 +62,10 @@ Result: Build succeeded. All Phase 13 changes verified as response-documentation
 ### Test Suite
 
 ```
-dotnet test .\HR.slnx -c Release
+dotnet test .\HR.slnx -c Release --no-build -m:1
 ```
 
-Result: MSBuild node failure (MSB4166 - child node exited prematurely) during test execution. This is a tooling/environment issue unrelated to Phase 13 changes. Build succeeded with 0 errors. Manual test execution requires a working test runner environment.
+Result: Passed. 458 passed, 0 failed, 0 skipped.
 
 ## Swagger/OpenAPI Verification
 
@@ -84,16 +89,16 @@ Result: `HR.API/Program.cs` uses `services.AddSwaggerGen()` without any security
 
 ## Behavior-Neutral Confirmation
 
-Result: `git diff` reviewed. All changes are limited to `HR.API/Controllers/` (10 files, 188 insertions) and `HR.API/Documentation/` (1 new file). No changes to `HR.API/Program.cs`, `HR.Application`, `HR.Domain`, `HR.Infrastructure`, `HR.Shared`, or `HR.Tests`. Changes are exclusively `[ProducesResponseType]` attributes, `[Produces("application/json")]` attributes, `using` directives for `HR.API.Documentation`, and the `ErrorResponseDocumentation` documentation-only schema. No runtime behavior was modified.
+Result: `git diff` reviewed. All source changes are limited to `HR.API/Controllers/` and `HR.API/Documentation/`. No changes to `HR.API/Program.cs`, `HR.Application`, `HR.Domain`, `HR.Infrastructure`, `HR.Shared`, or `HR.Tests`. Changes are exclusively response documentation metadata, `using` directives for `HR.API.Documentation`, and the `ErrorResponseDocumentation` documentation-only schema. No runtime behavior was modified.
 
 ## Quickstart Validation
 
 ### 1. Restore and Build
 - `dotnet restore .\HR.slnx` - Skipped (all projects up-to-date)
-- `dotnet build .\HR.slnx -c Release` - **PASS** (0 errors, 5 pre-existing warnings)
+- `dotnet build .\HR.slnx -c Release -m:1` - **PASS** (0 errors, 0 warnings)
 
 ### 2. Run Automated Tests
-- `dotnet test .\HR.slnx -c Release` - **TOOLING ISSUE** (MSBuild node failure - environment issue, not related to Phase 13)
+- `dotnet test .\HR.slnx -c Release --no-build -m:1` - **PASS** (458 passed, 0 failed, 0 skipped)
 
 ### 3. Start API Locally
 - Not executed (requires database/environment)
@@ -113,5 +118,4 @@ Result: `git diff` reviewed. All changes are limited to `HR.API/Controllers/` (1
 
 ## Follow-Up Findings
 
-1. **Test runner issue**: `dotnet test` fails with MSBuild node error (MSB4166) on this environment. This is a local tooling issue, not a Phase 13 code problem. Tests should be re-run in a properly configured CI/CD environment.
-2. **Swagger UI inspection**: Full manual Swagger UI/OpenAPI JSON verification requires the API to be running with a database connection. The metadata attributes have been verified through build success and code review.
+1. **Swagger UI inspection**: Full manual Swagger UI/OpenAPI JSON verification requires the API to be running with a database connection. The metadata attributes have been verified through build success, test success, and code review.

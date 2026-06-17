@@ -84,7 +84,7 @@ public class EmployeeDocumentsController(IEmployeeDocumentService documentServic
     }
 
     [HttpGet("{documentId:guid}")]
-    [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK, "application/octet-stream")]
     [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status404NotFound)]
