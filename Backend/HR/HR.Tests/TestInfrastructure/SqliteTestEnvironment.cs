@@ -157,7 +157,8 @@ public sealed class SqliteTestEnvironment : IAsyncDisposable
     public async Task<Trip> AddTripAsync(
         string referenceName,
         DateTimeOffset createdAt,
-        Guid? requestedByEmployeeId = null)
+        Guid? requestedByEmployeeId = null,
+        Guid? requesterEmployeeId = null)
     {
         var trip = new Trip
         {
@@ -169,7 +170,8 @@ public sealed class SqliteTestEnvironment : IAsyncDisposable
             TripCode = $"TRIP-{Guid.NewGuid():N}"[..11].ToUpperInvariant(),
             RequestCode = $"REQ-{Guid.NewGuid():N}"[..10].ToUpperInvariant(),
             CreatedAt = createdAt,
-            RequestedByEmployeeId = requestedByEmployeeId
+            RequestedByEmployeeId = requestedByEmployeeId,
+            RequesterEmployeeId = requesterEmployeeId
         };
 
         Context.Trips.Add(trip);

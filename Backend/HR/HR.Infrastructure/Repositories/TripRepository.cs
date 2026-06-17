@@ -19,7 +19,8 @@ public class TripRepository(ApplicationDbContext context) : ITripRepository
     {
         IQueryable<Trip> query = _context.Trips
             .AsNoTracking()
-            .Include(t => t.RequestedBy);
+            .Include(t => t.RequestedBy)
+            .Include(t => t.Requester);
 
         if (allowedTravelerIds is not null)
         {
@@ -39,6 +40,7 @@ public class TripRepository(ApplicationDbContext context) : ITripRepository
         return _context.Trips
             .AsNoTracking()
             .Include(t => t.RequestedBy)
+            .Include(t => t.Requester)
             .FirstOrDefaultAsync(t => t.Id == id, ct);
     }
 
@@ -46,6 +48,7 @@ public class TripRepository(ApplicationDbContext context) : ITripRepository
     {
         return _context.Trips
             .Include(t => t.RequestedBy)
+            .Include(t => t.Requester)
             .FirstOrDefaultAsync(t => t.Id == id, ct);
     }
 

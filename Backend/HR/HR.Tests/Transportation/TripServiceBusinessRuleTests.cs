@@ -22,6 +22,10 @@ public class TripServiceBusinessRuleTests
         Assert.True(result.IsSuccess);
         Assert.Equal(employee.Id, result.Value!.RequestedByEmployeeId);
         Assert.Equal(employee.FullName, result.Value.RequestedByEmployeeName);
+        Assert.Equal(employee.Id, result.Value.TravelerEmployeeId);
+        Assert.Equal(employee.FullName, result.Value.TravelerEmployeeName);
+        Assert.Equal(employee.Id, result.Value.RequesterEmployeeId);
+        Assert.Equal(employee.FullName, result.Value.RequesterEmployeeName);
     }
 
     [Fact]
@@ -151,6 +155,8 @@ public class TripServiceBusinessRuleTests
         Assert.True(byId.IsSuccess);
         Assert.Equal(historicalTrip.Id, byId.Value!.Id);
         Assert.Null(byId.Value.RequestedByEmployeeId);
+        Assert.Null(byId.Value.RequesterEmployeeId);
+        Assert.Null(byId.Value.RequesterEmployeeName);
         Assert.Contains(page.Value!.Items, trip => trip.Id == historicalTrip.Id);
     }
 

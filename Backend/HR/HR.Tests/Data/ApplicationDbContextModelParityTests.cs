@@ -53,9 +53,13 @@ public class ApplicationDbContextModelParityTests
         Assert.True(tripEntity.FindIndex(tripEntity.FindProperty(nameof(Trip.TripCode))!)!.IsUnique);
         Assert.True(tripEntity.FindIndex(tripEntity.FindProperty(nameof(Trip.RequestCode))!)!.IsUnique);
         Assert.NotNull(tripEntity.FindIndex(tripEntity.FindProperty(nameof(Trip.RequestedByEmployeeId))!));
+        Assert.NotNull(tripEntity.FindIndex(tripEntity.FindProperty(nameof(Trip.RequesterEmployeeId))!));
         Assert.Equal(
             DeleteBehavior.Restrict,
             tripEntity.FindNavigation(nameof(Trip.RequestedBy))!.ForeignKey.DeleteBehavior);
+        Assert.Equal(
+            DeleteBehavior.Restrict,
+            tripEntity.FindNavigation(nameof(Trip.Requester))!.ForeignKey.DeleteBehavior);
 
         Assert.Equal(500, vacationEntity!.FindProperty(nameof(VacationRequest.Reason))!.GetMaxLength());
         Assert.NotNull(vacationEntity.FindIndex(vacationEntity.FindProperty(nameof(VacationRequest.ReviewedByEmployeeId))!));

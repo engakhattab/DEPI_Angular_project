@@ -43,9 +43,16 @@ public class TripConfiguration : IEntityTypeConfiguration<Trip>
 
         entity.HasIndex(t => t.RequestedByEmployeeId);
 
+        entity.HasIndex(t => t.RequesterEmployeeId);
+
         entity.HasOne(t => t.RequestedBy)
             .WithMany()
             .HasForeignKey(t => t.RequestedByEmployeeId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        entity.HasOne(t => t.Requester)
+            .WithMany()
+            .HasForeignKey(t => t.RequesterEmployeeId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

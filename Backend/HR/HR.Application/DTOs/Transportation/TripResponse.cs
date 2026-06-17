@@ -10,6 +10,14 @@ public class TripResponse
 
     public string? RequestedByEmployeeName { get; set; }
 
+    public Guid? TravelerEmployeeId { get; set; }
+
+    public string? TravelerEmployeeName { get; set; }
+
+    public Guid? RequesterEmployeeId { get; set; }
+
+    public string? RequesterEmployeeName { get; set; }
+
     public string ReferenceName { get; set; } = string.Empty;
 
     public string Project { get; set; } = string.Empty;
@@ -33,6 +41,10 @@ public class TripResponse
             Id = trip.Id,
             RequestedByEmployeeId = trip.RequestedByEmployeeId,
             RequestedByEmployeeName = trip.RequestedBy?.FullName,
+            TravelerEmployeeId = trip.RequestedByEmployeeId,
+            TravelerEmployeeName = trip.RequestedBy?.FullName,
+            RequesterEmployeeId = trip.RequesterEmployeeId,
+            RequesterEmployeeName = trip.Requester?.FullName,
             ReferenceName = trip.ReferenceName,
             Project = trip.Project,
             Route = trip.Route,

@@ -114,6 +114,8 @@ Using SQL Server Management Studio, connect to your SQL Server instance and crea
 CREATE DATABASE HrSystemDb_Client;
 ```
 
+**Note for Phase 12 manual retest**: Use the disposable database name `HrSystemDb_Phase12LifecycleTest` for local validation. This database is created fresh, tested, and discarded. It avoids mutating your client project database.
+
 You may choose any database name, such as:
 
 ```text
@@ -278,6 +280,16 @@ Password policy from the current Identity setup:
 - requires lowercase letter
 - non-alphanumeric character is not required by current code, but a strong password is still recommended
 
+### Endpoint Permission Updates (Phases 8-11)
+
+The following authorization scope hardening has been applied:
+
+- **Employee endpoints**: Employee role receives `403` for list, create, update, delete. Manager role sees only team-scoped employees. HR/System roles have org-wide access. Only SystemAdministrator can assign roles (HRAdministrator receives `403`).
+- **Vacation endpoints**: Employee role sees/creates own requests only. Manager role sees/reviews team requests only (self-review blocked). HR/System roles have org-wide access.
+- **Trip endpoints**: Employee role accesses own trips only. Manager role accesses own + active team trips. HR/System roles have org-wide access. Requester metadata is stored separately from traveler data.
+- **Last-active-SystemAdministrator guard**: The last remaining active SystemAdministrator cannot delete, terminate, demote, or change their own role assignment.
+- For detailed role-specific scenarios, see the [API Lifecycle Testing Guide](../API_LIFECYCLE_TESTING_GUIDE.md).
+
 ### Required Department Before First Bootstrap
 
 The initial admin requires an existing department ID. The migrations create the `Departments` table but do not automatically seed a department.
@@ -415,12 +427,14 @@ Migrations are in:
 HR.Infrastructure\Data\Migrations
 ```
 
-Current migration names:
+Current migration names (including Phase 10 and Phase 11):
 
 ```text
 20251114215718_InitialCreate
 20260603014628_Phase5HrBusinessRules
 20260606235241_Phase7AdvancedHrFeatures
+20260615170903_AddVacationRequestCreatedByEmployee
+20260615212225_AddTripRequesterEmployee
 ```
 
 Apply migrations to create/update the client database:

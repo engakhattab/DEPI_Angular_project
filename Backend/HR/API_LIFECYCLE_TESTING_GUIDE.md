@@ -22,6 +22,8 @@ You can test with Swagger, Postman, or a browser.
 |------|----------|-----------------------|
 | Swagger | Quick manual endpoint testing from the API host | Login first through `/api/auth/login`; the browser must keep the auth cookie |
 | Postman | Full lifecycle testing with saved variables | Enable the cookie jar and keep the `.AspNetCore.Cookies` cookie after login |
+
+**Important**: Log out or clear cookies before switching between actors. A stale session cookie from a previous actor will produce unexpected authorization results.
 | Browser dev tools | Checking cookies and responses | Use the same API origin and prefer HTTPS |
 
 This project uses cookie authentication:
@@ -39,6 +41,7 @@ Prerequisites:
 
 - SQL Server is running.
 - `HR.API/appsettings.json` or `HR.API/appsettings.Development.json` points to the correct database.
+- For Phase 12 manual retest, use the disposable database `HrSystemDb_Phase12LifecycleTest` via environment variable.
 - EF migrations are applied.
 - The API can start without an old locked `HR.API.exe` process.
 - `BusinessSettings:TimeZoneId` is configured, for example `Africa/Cairo`.
@@ -62,6 +65,17 @@ Useful commands:
 dotnet restore .\HR.slnx
 dotnet build .\HR.slnx -c Release
 dotnet ef database update --project .\HR.Infrastructure\HR.Infrastructure.csproj --startup-project .\HR.API\HR.API.csproj
+dotnet ef migrations has-pending-model-changes --project .\HR.Infrastructure\HR.Infrastructure.csproj --startup-project .\HR.API\HR.API.csproj
+```
+
+The approved migration list through Phase 12:
+
+```text
+20251114215718_InitialCreate
+20260603014628_Phase5HrBusinessRules
+20260606235241_Phase7AdvancedHrFeatures
+20260615170903_AddVacationRequestCreatedByEmployee
+20260615212225_AddTripRequesterEmployee
 ```
 
 If Visual Studio build fails because files are locked, stop the running `HR.API` process first.
@@ -265,6 +279,17 @@ Expected response:
   "role": "SystemAdministrator"
 }
 ```
+
+### Expected Auth/Me Results for All Actors
+
+| Actor | Email | Expected Role |
+|-------|-------|---------------|
+| EMP001 | `admin@test.com` | `SystemAdministrator` |
+| EMP002 | `hr.admin@test.com` | `HRAdministrator` |
+| EMP003 | `manager@test.com` | `Manager` |
+| EMP004 | `employee@test.com` | `Employee` |
+
+The returned role determines what endpoints each actor can access. See employee, vacation, trip, and sensitive module sections for role-specific behavior.
 
 Common login failures:
 
@@ -481,6 +506,20 @@ Important employee rules:
 - Cross-department manager assignment is allowed but logged as a warning.
 - New employees default to role `Employee` until role assignment is called.
 
+### Employee Authorization Matrix (Phase 9)
+
+| Operation | Employee | Manager | HRAdministrator | SystemAdministrator |
+|-----------|----------|---------|-----------------|---------------------|
+| `GET /api/employees` | `403` | Team only | Org-wide | Org-wide |
+| `GET /api/employees/{id}` | Self only | Self + team | Any employee | Any employee |
+| `POST /api/employees` | `403` | `403` | Allowed | Allowed |
+| `PUT /api/employees/{id}` | `403` | `403` | Non-SystemAdmin targets | Allowed (last-admin guard) |
+| `DELETE /api/employees/{id}` | `403` | `403` | Non-SystemAdmin targets | Allowed (last-admin guard) |
+| `PUT /api/employees/{id}/role` | `403` | `403` | `403` | Allowed (last-admin demotion guard) |
+
+Note: HRAdministrator receives `403` for role assignment. Only SystemAdministrator can assign roles.
+Note: Last-active-SystemAdministrator protection prevents deleting, terminating, or demoting the only remaining SystemAdministrator.
+
 ## 11. Step 7 - Assign or Verify Roles
 
 Roles in this system:
@@ -586,13 +625,16 @@ Login:
 }
 ```
 
-Allowed test:
+Allowed tests:
 
 ```http
+GET /api/employees?page=1&pageSize=25
+GET /api/employees/<EMPLOYEE_ID>
+POST /api/employees
 PUT /api/employees/<EMPLOYEE_ID>/role
 ```
 
-Forbidden test: none expected for current Phase 7 admin features.
+Forbidden test: none expected for SystemAdministrator (wide access, except last-admin guard applies).
 
 ### HR Administrator
 
@@ -605,19 +647,23 @@ Login:
 }
 ```
 
-Allowed test:
+Allowed tests:
 
 ```http
+GET /api/employees?page=1&pageSize=25
+GET /api/employees/<EMPLOYEE_ID>
+POST /api/employees
 GET /api/audit-logs?page=1&pageSize=25
 ```
 
-Forbidden test:
+Forbidden tests:
 
 ```http
+PUT /api/employees/<SYSTEM_ADMIN_EMPLOYEE_ID>/update
 PUT /api/employees/<EMPLOYEE_ID>/role
 ```
 
-Expected: `403 Forbidden`.
+Expected: `403 Forbidden`. HRAdmin cannot assign roles or modify SystemAdministrator records.
 
 ### Manager
 
@@ -630,19 +676,23 @@ Login:
 }
 ```
 
-Allowed test:
+Allowed tests:
 
 ```http
+GET /api/employees?page=1&pageSize=25
+GET /api/employees/<EMP004_ID>
 GET /api/dashboard/summary
 ```
 
-Forbidden test:
+Forbidden tests:
 
 ```http
+GET /api/employees/<EMP001_ID>   (outside scope)
+POST /api/employees
 GET /api/audit-logs?page=1&pageSize=25
 ```
 
-Expected: `403 Forbidden`.
+Expected: `403 Forbidden` for out-of-scope detail, employee creation, and audit logs. Manager team list shows only active direct/indirect reports.
 
 ### Normal Employee
 
@@ -655,19 +705,25 @@ Login:
 }
 ```
 
-Allowed test:
+Allowed tests:
 
 ```http
+GET /api/employees/<EMP004_ID>   (self detail)
 POST /api/attendance/clock-in
 ```
 
-Forbidden test:
+Forbidden tests:
 
 ```http
-GET /api/employees/<EMPLOYEE_ID>/compensation
+GET /api/employees?page=1&pageSize=25
+GET /api/employees/<EMP001_ID>   (outside scope)
+POST /api/employees
+GET /api/employees/<EMP004_ID>/compensation
+GET /api/dashboard/summary
+GET /api/audit-logs?page=1&pageSize=25
 ```
 
-Expected: `403 Forbidden`.
+Expected: `403 Forbidden` for employee list, out-of-scope detail, employee create, compensation, dashboard, and audit logs.
 
 ## 13. Step 9 - Attendance Lifecycle
 
@@ -787,12 +843,22 @@ PUT /api/vacationrequests/{id}/status
 DELETE /api/vacationrequests/{id}
 ```
 
-Current controller-level requirement: authenticated user. Recommended lifecycle actors:
+### Vacation Authorization Scope (Phase 10)
+
+| Operation | Employee | Manager | HRAdministrator | SystemAdministrator |
+|-----------|----------|---------|-----------------|---------------------|
+| `GET /api/vacationrequests` | Own only | Team only | Org-wide | Org-wide |
+| `GET /api/vacationrequests/{id}` | Own only | Self + team | Any | Any |
+| `POST /api/vacationrequests` | Self only | Self only | For any employee | For any employee |
+| `PUT /api/vacationrequests/{id}/status` | Self-review blocked | Team only (self blocked) | Org-wide (self blocked) | Org-wide (self blocked) |
+| `DELETE /api/vacationrequests/{id}` | Own only | Team only | Org-wide | Org-wide |
+
+Self-review is blocked for every role. Out-of-scope vacation detail returns `404` or `403` depending on scenario. Out-of-scope list filters return an empty scoped page with normal pagination shape.
+
+Recommended lifecycle actors:
 
 - Employee submits own vacation.
 - Manager or HR Administrator reviews it.
-
-Note: The current status endpoint uses the authenticated `employee_id` claim and prevents self-review, but the controller does not declare a Manager/HR-only policy. Verify role expectations from Swagger/controller/tests before using this as a production authorization assumption.
 
 Use future working dates. Friday and Saturday are non-working days in `WorkingDayCalendar`. The service requires at least three full working days of notice.
 
@@ -925,13 +991,22 @@ POST /api/trips
 DELETE /api/trips/{id}
 ```
 
-Current controller-level requirement: authenticated user. Recommended lifecycle actor: HR Administrator or System Administrator.
+### Trip Authorization Scope (Phase 11)
 
-Important: The current API does not have trip review, approve, or reject endpoints. Test create, list, get by id, requester validation, date validation, and delete.
+| Operation | Employee | Manager | HRAdministrator | SystemAdministrator |
+|-----------|----------|---------|-----------------|---------------------|
+| `GET /api/trips` | Own only | Own + active team | Org-wide | Org-wide |
+| `GET /api/trips/{id}` | Own only | Own + team | Any | Any |
+| `POST /api/trips` | Self only | Self + team | For any employee | For any employee |
+| `DELETE /api/trips/{id}` | Own only | Own + team | Any | Any |
+
+Important: The current API does not have trip review, approve, or reject endpoints. Test create, list, get by id, traveler validation, requester metadata, date validation, and delete. The `requestedByEmployeeId` request field is compatibility traveler data; the authenticated employee is recorded separately as requester.
+
+The response includes both traveler (`requestedByEmployeeId`, `requestedByEmployeeName`) and requester (`requesterEmployeeId`, `requesterEmployeeName`) fields. For historical trips, `requesterEmployeeId` may be null. Out-of-scope trip detail/delete returns `403 Forbidden`. Out-of-scope list filters return an empty page with normal pagination shape.
 
 ### Create Trip Request
 
-Login as HR Admin or System Admin.
+Login as HR Admin or System Admin for organization-wide validation. Repeat the same flow as an Employee for self-only behavior and as a Manager for own/team behavior.
 
 ```http
 POST /api/trips
@@ -953,7 +1028,8 @@ If this date is now in the past, replace it with a future working day. Friday an
 Expected:
 
 - Status: `201 Created`
-- Response has `id`, `requestedByEmployeeId`, `requestedByEmployeeName`, `tripCode`, `requestCode`
+- Response has existing fields `id`, `requestedByEmployeeId`, `requestedByEmployeeName`, `tripCode`, `requestCode`
+- Response also includes additive `travelerEmployeeId`, `travelerEmployeeName`, `requesterEmployeeId`, and `requesterEmployeeName`
 
 Copy:
 
@@ -967,17 +1043,25 @@ requestCode -> <REQUEST_CODE>
 
 ```http
 GET /api/trips?page=1&pageSize=25
+GET /api/trips?travelerEmployeeId=<EMPLOYEE_ID>&page=1&pageSize=25
 GET /api/trips/<TRIP_ID>
 ```
 
+Expected scope behavior:
+
+- Employee: own trips only. Out-of-scope `travelerEmployeeId` filters return an empty page.
+- Manager: own plus active direct/indirect team trips only. Peer, unrelated, soft-deleted, or terminated report filters return an empty page.
+- HR/System: organization-wide trips.
+- Existing out-of-scope trip detail/delete returns `403 Forbidden`; missing trip IDs return `404 Not Found`.
+
 ### Invalid Trip Tests
 
-Missing requester:
+Missing target traveler for HR/System:
 
 ```json
 {
   "requestedByEmployeeId": "00000000-0000-0000-0000-000000000000",
-  "referenceName": "Invalid requester",
+  "referenceName": "Invalid traveler",
   "project": "Project Alpha",
   "route": "Cairo",
   "tripType": "Business",
@@ -986,6 +1070,12 @@ Missing requester:
 ```
 
 Expected: `404 Not Found`.
+
+Out-of-scope traveler for Employee or Manager:
+
+- Create for another employee outside scope: `403 Forbidden`
+- Detail/delete existing trip outside scope: `403 Forbidden`
+- List filter outside scope: successful empty page
 
 Past or non-working trip date:
 
@@ -1569,10 +1659,14 @@ Expected:
 14. Assign `HRAdministrator` role.
 15. Assign `Manager` role.
 16. Test login per role.
-17. Test allowed and forbidden role access.
+17. Test allowed and forbidden role access:
+    - Employee: `403` on `GET /api/employees`, self-only detail
+    - Manager: team-only `GET /api/employees`, `403` on outside-scope detail
+    - HR Admin: org-wide employee access, `403` on role assignment
+    - System Admin: full access, role assignment
 18. Test attendance clock-in, duplicate clock-in, and clock-out.
-19. Test vacation create, approve/reject, same-status no-op, invalid transition, and overlap.
-20. Test trip create, list, get, validation failures, and delete.
+19. Test vacation create (employee self, HR creates for employee), approve/reject (manager team, HR org-wide), same-status no-op, invalid transition, overlap, self-review blocked.
+20. Test trip create (employee self, manager team, HR for employee), list scope (employee own-only, manager own+team, HR org-wide), get/detail scope, validation failures (past date, non-working day), delete scope.
 21. Test compensation update, view, history, no-change update, and forbidden access.
 22. Test document upload, list, download, remove, removed download, oversized file, and invalid type.
 23. Test dashboard as Manager and HR Admin.
@@ -1598,9 +1692,15 @@ Usually means login worked but the role/scope is not allowed.
 
 Examples:
 
+- Employee calling `GET /api/employees` (list).
+- Employee calling another employee detail outside self.
+- Manager calling employee detail for an outside-team employee.
 - Employee calling compensation endpoint.
 - Manager calling audit logs.
 - HR Admin trying to assign roles.
+- Employee creating a trip for another employee.
+
+Note: Some out-of-scope scenarios return `404 Not Found` instead of `403` where the current contract requires non-disclosure. Either response is valid depending on the specific endpoint and context.
 
 ### 400 Validation Error
 
@@ -1718,9 +1818,19 @@ Role testing:
 - [ ] Login as HR Admin
 - [ ] Login as Manager
 - [ ] Login as Employee
-- [ ] Confirm Employee cannot access compensation
-- [ ] Confirm Manager cannot access audit logs
-- [ ] Confirm HR Admin cannot assign roles
+- [ ] Confirm Employee `GET /api/employees` returns `403`
+- [ ] Confirm Employee cannot view another employee detail: `403`
+- [ ] Confirm Manager team list excludes outside-scope employees
+- [ ] Confirm Manager cannot view outside-team employee detail: `403`
+- [ ] Confirm Employee cannot access compensation: `403`
+- [ ] Confirm Manager cannot access audit logs: `403`
+- [ ] Confirm HR Admin cannot assign roles: `403`
+- [ ] Confirm HR Admin can access org-wide employee list: `200`
+- [ ] Confirm Employee vacation list shows only own requests
+- [ ] Confirm Manager vacation review is team-only
+- [ ] Confirm Employee trip list shows only own trips
+- [ ] Confirm Manager trip list includes own + team trips
+- [ ] Confirm self-review blocked for all roles on vacation endpoints: `422`
 
 Lifecycle modules:
 
@@ -1758,6 +1868,6 @@ The guide uses routes and DTOs from the current source code. Verify these in Swa
 
 - `POST /api/employees/{employeeId}/documents` multipart form rendering for `category` and `file`.
 - Casing of controller-token routes such as `/api/vacationrequests`; ASP.NET routing is case-insensitive, but Swagger shows the generated route.
-- Controller-level authorization for departments, vacation requests, and trips is authenticated access. Vacation request endpoints use role-specific authorization (Phase 10): Employee own-only list/detail/create/delete; Manager team-only list (excludes self by default), self filter available, self/team detail, self-only create/delete, team-only review (self-review forbidden); HR/System organization-wide list/detail/create/delete/review (self-review forbidden). Employee endpoints use role-specific authorization (Phase 9): Employee/Manager receive `403` for list/create/update/delete, Employee self-only for detail, Manager team-scoped list, HR/System wide access. Verify role expectations from the Phase 9 and Phase 10 access matrices.
+- Controller-level authorization for departments is authenticated access. Vacation request endpoints use role-specific authorization (Phase 10): Employee own-only list/detail/create/delete; Manager team-only list (excludes self by default), self filter available, self/team detail, self-only create/delete, team-only review (self-review forbidden); HR/System organization-wide list/detail/create/delete/review (self-review forbidden). Employee endpoints use role-specific authorization (Phase 9): Employee/Manager receive `403` for list/create/update/delete, Employee self-only for detail, Manager team-scoped list, HR/System wide access. Trip endpoints use role-specific authorization (Phase 11): Employee own-only list/detail/create/delete; Manager own plus active direct/indirect team list/detail/create/delete; HR/System organization-wide list/detail/create/delete. Verify role expectations from the Phase 9, Phase 10, and Phase 11 access matrices.
 - Trip approval/rejection endpoints do not exist in the current API.
 - Compensation has only `GET` and `PUT`; `PUT` creates or updates compensation.

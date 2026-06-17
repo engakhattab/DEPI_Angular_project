@@ -105,13 +105,17 @@ public class TripService(
         }
 
         var requester = requesterResult.Value!;
-        var allowedIds = await GetAllowedTravelerIdsAsync(requester, ct);
+        var hasOrgScope = await _employeeAccessService.HasOrganizationScopeAsync(requester.Id, ct);
         var targetTravelerId = request.RequestedByEmployeeId;
 
-        if (!allowedIds.Contains(targetTravelerId))
+        if (!hasOrgScope)
         {
-            return Result<TripResponse>.Failure(
-                ServiceError.Forbidden("You do not have permission to create a trip for this employee."));
+            var allowedIds = await GetAllowedTravelerIdsAsync(requester, ct);
+            if (!allowedIds.Contains(targetTravelerId))
+            {
+                return Result<TripResponse>.Failure(
+                    ServiceError.Forbidden("You do not have permission to create a trip for this employee."));
+            }
         }
 
         var traveler = await _employeeRepository.GetByIdAsync(targetTravelerId, ct);
@@ -153,6 +157,8 @@ public class TripService(
             RequestCode = GenerateCode("REQ"),
             CreatedAt = _timeProvider.GetUtcNow()
         };
+        trip.RequesterEmployeeId = requester.Id;
+        trip.Requester = requester;
 
         await _tripRepository.AddAsync(trip, ct);
         await _unitOfWork.SaveChangesAsync(ct);

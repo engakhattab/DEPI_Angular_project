@@ -82,6 +82,8 @@ public class TripAccessScopeTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal(emp.Id, result.Value!.RequestedByEmployeeId);
+        Assert.Equal(emp.Id, result.Value.TravelerEmployeeId);
+        Assert.Equal(emp.Id, result.Value.RequesterEmployeeId);
     }
 
     [Fact]
@@ -99,6 +101,30 @@ public class TripAccessScopeTests
 
         Assert.False(result.IsSuccess);
         Assert.Equal("FORBIDDEN", result.Error!.Code);
+    }
+
+    [Fact]
+    public async Task ManagerCreate_DeletedOrTerminatedReport_ReturnsForbiddenBeforeCreation()
+    {
+        await using var env = await CreateEnvironmentAsync();
+        var manager = await env.AddEmployeeAsync("EMP-M24", "emp-m24@example.com", env.DefaultDepartment!.Id, role: EmployeeRole.Manager);
+        var softDeleted = await env.AddEmployeeAsync("EMP-M25", "emp-m25@example.com", env.DefaultDepartment!.Id, managerId: manager.Id, isDeleted: true);
+        var terminated = await env.AddEmployeeAsync("EMP-M26", "emp-m26@example.com", env.DefaultDepartment!.Id, managerId: manager.Id, status: EmployeeStatus.Terminated, terminatedAt: new DateTimeOffset(2026, 6, 1, 0, 0, 0, TimeSpan.Zero));
+        var service = env.GetRequiredService<ITripService>();
+
+        var deletedResult = await service.CreateTripAsync(
+            manager.Id,
+            BuildRequest(softDeleted.Id, new DateOnly(2026, 6, 10)),
+            CancellationToken.None);
+        var terminatedResult = await service.CreateTripAsync(
+            manager.Id,
+            BuildRequest(terminated.Id, new DateOnly(2026, 6, 10)),
+            CancellationToken.None);
+
+        Assert.False(deletedResult.IsSuccess);
+        Assert.Equal("FORBIDDEN", deletedResult.Error!.Code);
+        Assert.False(terminatedResult.IsSuccess);
+        Assert.Equal("FORBIDDEN", terminatedResult.Error!.Code);
     }
 
     [Fact]
@@ -266,6 +292,10 @@ public class TripAccessScopeTests
 
         Assert.True(selfResult.IsSuccess);
         Assert.True(teamResult.IsSuccess);
+        Assert.Equal(manager.Id, selfResult.Value!.TravelerEmployeeId);
+        Assert.Equal(manager.Id, selfResult.Value.RequesterEmployeeId);
+        Assert.Equal(direct.Id, teamResult.Value!.TravelerEmployeeId);
+        Assert.Equal(manager.Id, teamResult.Value.RequesterEmployeeId);
     }
 
     [Fact]
@@ -385,6 +415,47 @@ public class TripAccessScopeTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal(emp.Id, result.Value!.RequestedByEmployeeId);
+        Assert.Equal(emp.Id, result.Value.TravelerEmployeeId);
+        Assert.Equal(hr.Id, result.Value.RequesterEmployeeId);
+    }
+
+    [Fact]
+    public async Task HRAdminCreate_MissingTraveler_ReturnsNotFound()
+    {
+        await using var env = await CreateEnvironmentAsync();
+        var hr = await env.AddEmployeeAsync("EMP-H10", "emp-h10@example.com", env.DefaultDepartment!.Id, role: EmployeeRole.HRAdministrator);
+        var missingTravelerId = Guid.NewGuid();
+        var service = env.GetRequiredService<ITripService>();
+
+        var result = await service.CreateTripAsync(
+            hr.Id,
+            BuildRequest(missingTravelerId, new DateOnly(2026, 6, 10)),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("NOT_FOUND", result.Error!.Code);
+    }
+
+    [Fact]
+    public async Task HRAdminCreate_IneligibleTraveler_ReturnsBusinessRule()
+    {
+        await using var env = await CreateEnvironmentAsync();
+        var hr = await env.AddEmployeeAsync("EMP-H11", "emp-h11@example.com", env.DefaultDepartment!.Id, role: EmployeeRole.HRAdministrator);
+        var suspended = await env.AddEmployeeAsync("EMP-H12", "emp-h12@example.com", env.DefaultDepartment!.Id, status: EmployeeStatus.Suspended);
+        var softDeleted = await env.AddEmployeeAsync("EMP-H13", "emp-h13@example.com", env.DefaultDepartment!.Id, isDeleted: true);
+        var terminated = await env.AddEmployeeAsync("EMP-H14", "emp-h14@example.com", env.DefaultDepartment!.Id, status: EmployeeStatus.Terminated, terminatedAt: new DateTimeOffset(2026, 6, 1, 0, 0, 0, TimeSpan.Zero));
+        var service = env.GetRequiredService<ITripService>();
+
+        var suspendedResult = await service.CreateTripAsync(hr.Id, BuildRequest(suspended.Id, new DateOnly(2026, 6, 10)), CancellationToken.None);
+        var deletedResult = await service.CreateTripAsync(hr.Id, BuildRequest(softDeleted.Id, new DateOnly(2026, 6, 10)), CancellationToken.None);
+        var terminatedResult = await service.CreateTripAsync(hr.Id, BuildRequest(terminated.Id, new DateOnly(2026, 6, 10)), CancellationToken.None);
+
+        Assert.False(suspendedResult.IsSuccess);
+        Assert.Equal("BUSINESS_RULE_VIOLATION", suspendedResult.Error!.Code);
+        Assert.False(deletedResult.IsSuccess);
+        Assert.Equal("BUSINESS_RULE_VIOLATION", deletedResult.Error!.Code);
+        Assert.False(terminatedResult.IsSuccess);
+        Assert.Equal("BUSINESS_RULE_VIOLATION", terminatedResult.Error!.Code);
     }
 
     [Fact]
@@ -399,6 +470,24 @@ public class TripAccessScopeTests
         var result = await service.DeleteTripAsync(hr.Id, trip.Id, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public async Task HistoricalTrip_WithNullRequester_RemainsReadableForOrganizationScope()
+    {
+        await using var env = await CreateEnvironmentAsync();
+        var hr = await env.AddEmployeeAsync("EMP-H15", "emp-h15@example.com", env.DefaultDepartment!.Id, role: EmployeeRole.HRAdministrator);
+        var traveler = await env.AddEmployeeAsync("EMP-H16", "emp-h16@example.com", env.DefaultDepartment!.Id);
+        var trip = await env.AddTripAsync("Historical Team Trip", new DateTimeOffset(2026, 6, 10, 12, 0, 0, TimeSpan.Zero), traveler.Id);
+        var service = env.GetRequiredService<ITripService>();
+
+        var result = await service.GetTripByIdAsync(hr.Id, trip.Id, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(traveler.Id, result.Value!.TravelerEmployeeId);
+        Assert.Equal(traveler.FullName, result.Value.TravelerEmployeeName);
+        Assert.Null(result.Value.RequesterEmployeeId);
+        Assert.Null(result.Value.RequesterEmployeeName);
     }
 
     [Fact]
@@ -444,6 +533,8 @@ public class TripAccessScopeTests
             CancellationToken.None);
 
         Assert.True(result.IsSuccess);
+        Assert.Equal(emp.Id, result.Value!.TravelerEmployeeId);
+        Assert.Equal(sysAdmin.Id, result.Value.RequesterEmployeeId);
     }
 
     [Fact]

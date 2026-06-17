@@ -23,4 +23,8 @@ public class Trip
     public Guid? RequestedByEmployeeId { get; set; }
 
     public Employee? RequestedBy { get; set; }
+
+    public Guid? RequesterEmployeeId { get; set; }
+
+    public Employee? Requester { get; set; }
 }

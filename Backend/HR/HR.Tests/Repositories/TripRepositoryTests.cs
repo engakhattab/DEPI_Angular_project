@@ -61,4 +61,28 @@ public class TripRepositoryTests
         Assert.Empty(page.Items);
         Assert.Equal(0, page.TotalCount);
     }
+
+    [Fact]
+    public async Task Lookups_IncludeTravelerAndRequesterWhenPresent()
+    {
+        await using var environment = await SqliteTestEnvironment.CreateAsync(seedDefaultDepartment: true);
+        var traveler = await environment.AddEmployeeAsync("EMP-335", "emp335@example.com", environment.DefaultDepartment!.Id);
+        var requester = await environment.AddEmployeeAsync("EMP-336", "emp336@example.com", environment.DefaultDepartment!.Id);
+        var trip = await environment.AddTripAsync(
+            "Requester Metadata Trip",
+            new DateTimeOffset(2026, 6, 3, 8, 0, 0, TimeSpan.Zero),
+            traveler.Id,
+            requester.Id);
+        var repository = new TripRepository(environment.Context);
+
+        var lookup = await repository.GetByIdAsync(trip.Id, CancellationToken.None);
+        var trackedLookup = await repository.GetTrackedByIdAsync(trip.Id, CancellationToken.None);
+
+        Assert.NotNull(lookup);
+        Assert.Equal(traveler.FullName, lookup!.RequestedBy!.FullName);
+        Assert.Equal(requester.Id, lookup.RequesterEmployeeId);
+        Assert.Equal(requester.FullName, lookup.Requester!.FullName);
+        Assert.NotNull(trackedLookup);
+        Assert.Equal(requester.FullName, trackedLookup!.Requester!.FullName);
+    }
 }
