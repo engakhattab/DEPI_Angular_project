@@ -1,3 +1,4 @@
+using HR.API.Documentation;
 using HR.API.Extensions;
 using HR.Application.DTOs.Transportation;
 using HR.Application.Transportation;
@@ -11,11 +12,15 @@ namespace HR.API.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
+[Produces("application/json")]
 public class TripsController(ITripService tripService) : ControllerBase
 {
     private readonly ITripService _tripService = tripService;
 
     [HttpGet]
+    [ProducesResponseType(typeof(PagedList<TripResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<PagedList<TripResponse>>> GetTrips(
         [FromQuery] Guid? travelerEmployeeId,
         [FromQuery] int page = 1,
@@ -38,6 +43,10 @@ public class TripsController(ITripService tripService) : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(TripResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<TripResponse>> GetTrip(Guid id, CancellationToken cancellationToken)
     {
         var requesterId = User.GetEmployeeId();
@@ -56,6 +65,13 @@ public class TripsController(ITripService tripService) : ControllerBase
     }
 
     [HttpPost]
+    [ProducesResponseType(typeof(TripResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status422UnprocessableEntity)]
     public async Task<ActionResult<TripResponse>> CreateTrip(
         [FromBody] TripCreateRequest request,
         CancellationToken cancellationToken)
@@ -81,6 +97,12 @@ public class TripsController(ITripService tripService) : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> DeleteTrip(Guid id, CancellationToken cancellationToken)
     {
         var requesterId = User.GetEmployeeId();

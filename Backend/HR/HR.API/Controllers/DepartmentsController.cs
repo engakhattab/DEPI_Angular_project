@@ -1,3 +1,4 @@
+using HR.API.Documentation;
 using HR.API.Extensions;
 using HR.Application.Departments;
 using HR.Application.DTOs.Departments;
@@ -11,11 +12,15 @@ namespace HR.API.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
+[Produces("application/json")]
 public class DepartmentsController(IDepartmentService departmentService) : ControllerBase
 {
     private readonly IDepartmentService _departmentService = departmentService;
 
     [HttpGet]
+    [ProducesResponseType(typeof(PagedList<DepartmentResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<PagedList<DepartmentResponse>>> GetDepartments(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 25,
@@ -26,6 +31,10 @@ public class DepartmentsController(IDepartmentService departmentService) : Contr
     }
 
     [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(DepartmentResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<DepartmentResponse>> GetDepartment(Guid id, CancellationToken cancellationToken)
     {
         var department = await _departmentService.GetDepartmentByIdAsync(id, cancellationToken);
@@ -38,6 +47,12 @@ public class DepartmentsController(IDepartmentService departmentService) : Contr
     }
 
     [HttpPost]
+    [ProducesResponseType(typeof(DepartmentResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status422UnprocessableEntity)]
     public async Task<ActionResult<DepartmentResponse>> CreateDepartment(
         [FromBody] DepartmentCreateRequest request,
         CancellationToken cancellationToken)
@@ -57,6 +72,13 @@ public class DepartmentsController(IDepartmentService departmentService) : Contr
     }
 
     [HttpPut("{id:guid}")]
+    [ProducesResponseType(typeof(DepartmentResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status422UnprocessableEntity)]
     public async Task<ActionResult<DepartmentResponse>> UpdateDepartment(
         Guid id,
         [FromBody] DepartmentUpdateRequest request,
@@ -77,6 +99,12 @@ public class DepartmentsController(IDepartmentService departmentService) : Contr
     }
 
     [HttpDelete("{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> DeleteDepartment(Guid id, CancellationToken cancellationToken)
     {
         var result = await _departmentService.DeleteDepartmentAsync(id, cancellationToken);

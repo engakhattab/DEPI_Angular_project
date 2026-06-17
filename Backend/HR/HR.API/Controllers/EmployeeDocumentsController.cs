@@ -1,3 +1,4 @@
+using HR.API.Documentation;
 using HR.API.Extensions;
 using HR.Application.Documents;
 using HR.Application.DTOs.Documents;
@@ -11,6 +12,7 @@ namespace HR.API.Controllers;
 [ApiController]
 [Authorize(Policy = "HRAdministrator")]
 [Route("api/employees/{employeeId:guid}/documents")]
+[Produces("application/json")]
 public class EmployeeDocumentsController(IEmployeeDocumentService documentService) : ControllerBase
 {
     private readonly IEmployeeDocumentService _documentService = documentService;
@@ -18,6 +20,13 @@ public class EmployeeDocumentsController(IEmployeeDocumentService documentServic
     [HttpPost]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(10485760)]
+    [ProducesResponseType(typeof(EmployeeDocumentResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status413PayloadTooLarge)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status422UnprocessableEntity)]
     public async Task<ActionResult<EmployeeDocumentResponse>> Upload(
         Guid employeeId,
         [FromForm] EmployeeDocumentCategory category,
@@ -58,6 +67,10 @@ public class EmployeeDocumentsController(IEmployeeDocumentService documentServic
     }
 
     [HttpGet]
+    [ProducesResponseType(typeof(PagedList<EmployeeDocumentResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<PagedList<EmployeeDocumentResponse>>> List(Guid employeeId, [FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default)
     {
         var requesterId = User.GetEmployeeId();
@@ -71,6 +84,10 @@ public class EmployeeDocumentsController(IEmployeeDocumentService documentServic
     }
 
     [HttpGet("{documentId:guid}")]
+    [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Download(Guid employeeId, Guid documentId, CancellationToken ct)
     {
         var requesterId = User.GetEmployeeId();
@@ -86,6 +103,12 @@ public class EmployeeDocumentsController(IEmployeeDocumentService documentServic
     }
 
     [HttpDelete("{documentId:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> Delete(Guid employeeId, Guid documentId, CancellationToken ct)
     {
         var requesterId = User.GetEmployeeId();

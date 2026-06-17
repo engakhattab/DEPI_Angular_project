@@ -1,3 +1,4 @@
+using HR.API.Documentation;
 using HR.API.Extensions;
 using HR.Application.DTOs.Employees;
 using HR.Application.Employees;
@@ -12,11 +13,15 @@ namespace HR.API.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
+[Produces("application/json")]
 public class EmployeesController(IEmployeeService employeeService) : ControllerBase
 {
     private readonly IEmployeeService _employeeService = employeeService;
 
     [HttpGet]
+    [ProducesResponseType(typeof(PagedList<EmployeeResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<PagedList<EmployeeResponse>>> GetEmployees(
         [FromQuery] EmployeeStatus? status = null,
         [FromQuery] int page = 1,
@@ -39,6 +44,10 @@ public class EmployeesController(IEmployeeService employeeService) : ControllerB
     }
 
     [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(EmployeeResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<EmployeeResponse>> GetEmployee(Guid id, CancellationToken cancellationToken)
     {
         var requesterId = User.GetEmployeeId();
@@ -57,6 +66,12 @@ public class EmployeesController(IEmployeeService employeeService) : ControllerB
     }
 
     [HttpPost]
+    [ProducesResponseType(typeof(EmployeeCreatedResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status422UnprocessableEntity)]
     public async Task<ActionResult<EmployeeCreatedResponse>> CreateEmployee(
         [FromBody] EmployeeCreateRequest request,
         CancellationToken cancellationToken)
@@ -82,6 +97,13 @@ public class EmployeesController(IEmployeeService employeeService) : ControllerB
     }
 
     [HttpPut("{id:guid}")]
+    [ProducesResponseType(typeof(EmployeeResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status422UnprocessableEntity)]
     public async Task<ActionResult<EmployeeResponse>> UpdateEmployee(
         Guid id,
         [FromBody] EmployeeUpdateRequest request,
@@ -108,6 +130,12 @@ public class EmployeesController(IEmployeeService employeeService) : ControllerB
     }
 
     [HttpDelete("{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> DeleteEmployee(Guid id, CancellationToken cancellationToken)
     {
         var requesterId = User.GetEmployeeId();
@@ -127,6 +155,13 @@ public class EmployeesController(IEmployeeService employeeService) : ControllerB
 
     [HttpPut("{id:guid}/role")]
     [Authorize(Policy = "SystemAdministrator")]
+    [ProducesResponseType(typeof(EmployeeRoleResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status422UnprocessableEntity)]
     public async Task<ActionResult<EmployeeRoleResponse>> UpdateRole(
         Guid id,
         [FromBody] EmployeeRoleUpdateRequest request,

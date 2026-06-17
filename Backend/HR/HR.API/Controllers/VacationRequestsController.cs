@@ -1,7 +1,9 @@
+using HR.API.Documentation;
 using HR.API.Extensions;
 using HR.Application.DTOs.VacationRequests;
 using HR.Application.VacationRequests;
 using HR.Domain.Enums;
+using HR.Shared.Pagination;
 using HR.Shared.Results;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,11 +14,15 @@ namespace HR.API.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
+[Produces("application/json")]
 public class VacationRequestsController(IVacationRequestService vacationRequestService) : ControllerBase
 {
     private readonly IVacationRequestService _vacationRequestService = vacationRequestService;
 
     [HttpGet]
+    [ProducesResponseType(typeof(PagedList<VacationRequestResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GetVacationRequests(
         [FromQuery] VacationRequestStatus? status = null,
         [FromQuery] Guid? employeeId = null,
@@ -47,6 +53,10 @@ public class VacationRequestsController(IVacationRequestService vacationRequestS
     }
 
     [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(VacationRequestResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetVacationRequest(Guid id, CancellationToken cancellationToken)
     {
         var requesterId = User.GetEmployeeId();
@@ -69,6 +79,13 @@ public class VacationRequestsController(IVacationRequestService vacationRequestS
     }
 
     [HttpPost]
+    [ProducesResponseType(typeof(VacationRequestResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> CreateVacationRequest(
         [FromBody] VacationRequestCreateRequest request,
         CancellationToken cancellationToken)
@@ -98,6 +115,13 @@ public class VacationRequestsController(IVacationRequestService vacationRequestS
     }
 
     [HttpPut("{id:guid}/status")]
+    [ProducesResponseType(typeof(VacationRequestResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> UpdateVacationStatus(
         Guid id,
         [FromBody] VacationRequestStatusUpdateRequest request,
@@ -124,6 +148,12 @@ public class VacationRequestsController(IVacationRequestService vacationRequestS
     }
 
     [HttpDelete("{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> DeleteVacationRequest(Guid id, CancellationToken cancellationToken)
     {
         var requesterId = User.GetEmployeeId();

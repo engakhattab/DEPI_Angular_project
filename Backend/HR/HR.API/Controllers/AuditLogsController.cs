@@ -1,3 +1,4 @@
+using HR.API.Documentation;
 using HR.API.Extensions;
 using HR.Application.Audit;
 using HR.Application.DTOs.Audit;
@@ -10,11 +11,15 @@ namespace HR.API.Controllers;
 [ApiController]
 [Authorize(Policy = "HRAdministrator")]
 [Route("api/audit-logs")]
+[Produces("application/json")]
 public class AuditLogsController(IAuditLogService auditLogService) : ControllerBase
 {
     private readonly IAuditLogService _auditLogService = auditLogService;
 
     [HttpGet]
+    [ProducesResponseType(typeof(PagedList<AuditLogEntryResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<PagedList<AuditLogEntryResponse>>> Search(
         [FromQuery] string? entityType = null,
         [FromQuery] Guid? entityId = null,

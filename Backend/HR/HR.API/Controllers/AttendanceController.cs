@@ -1,3 +1,4 @@
+using HR.API.Documentation;
 using HR.API.Extensions;
 using HR.Application.Attendance;
 using HR.Application.DTOs.Attendance;
@@ -8,11 +9,18 @@ namespace HR.API.Controllers;
 
 [ApiController]
 [Route("api/attendance")]
+[Produces("application/json")]
 public class AttendanceController(IAttendanceService attendanceService) : ControllerBase
 {
     private readonly IAttendanceService _attendanceService = attendanceService;
 
     [HttpPost("clock-in")]
+    [ProducesResponseType(typeof(AttendanceRecordResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status422UnprocessableEntity)]
     public async Task<ActionResult<AttendanceRecordResponse>> ClockIn([FromBody] AttendanceClockInRequest request, CancellationToken ct)
     {
         var employeeId = User.GetEmployeeId();
@@ -31,6 +39,13 @@ public class AttendanceController(IAttendanceService attendanceService) : Contro
     }
 
     [HttpPost("clock-out")]
+    [ProducesResponseType(typeof(AttendanceRecordResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status422UnprocessableEntity)]
     public async Task<ActionResult<AttendanceRecordResponse>> ClockOut([FromBody] AttendanceClockOutRequest request, CancellationToken ct)
     {
         var employeeId = User.GetEmployeeId();
@@ -49,6 +64,9 @@ public class AttendanceController(IAttendanceService attendanceService) : Contro
     }
 
     [HttpGet]
+    [ProducesResponseType(typeof(PagedList<AttendanceRecordResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDocumentation), StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<PagedList<AttendanceRecordResponse>>> GetAttendance(
         [FromQuery] Guid? employeeId = null,
         [FromQuery] DateOnly? from = null,
